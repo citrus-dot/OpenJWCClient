@@ -129,7 +129,7 @@ swift test 2>&1 | grep "Test run with"
 
 其余产出：`ios/`（XcodeGen 占位 app：`project.yml` + `OpenJWCApp.swift`，阶段 4 接线用）、`openspec/`（含归档 change）。
 
-**工作区 git 状态**：Android 克隆干净；iOS 产出全部未跟踪/未提交（`.gitignore` 已修改加入 ios 构建产物）。**切换 agent 后勿盲目 `git checkout .`**。
+**工作区 git 状态（2026-09-21 更新）**：iOS 产出已提交并推送至用户 fork——远端 `origin` = `citrus-dot/OpenJWCClient`（用户 fork），`upstream` = `OpenJWC/OpenJWCClient`（原仓库，Android 活跃开发真源，拉更新用）。提交链 `92ae0d5 → c813e61 (chore gitignore) → 657eaa3 (feat OpenJWCCore 包) → af7f4ad (feat app 脚手架/openspec/roadmap)`，已推送 `feat/on-device-ai` 并建立跟踪。`.gitignore` 覆盖：xcodeproj 生成物、.build、.mimosa、.workbuddy、.trae、.agents。提交者身份为 git 自动推导（Orange <orange@Mac.lan>），如需改名请用户自行 `git config --global`。
 
 ## 6. 已知技术决策记录（实施期沉淀）
 
