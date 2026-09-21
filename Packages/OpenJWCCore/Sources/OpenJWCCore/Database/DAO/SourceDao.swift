@@ -2,20 +2,32 @@ import Foundation
 import GRDB
 
 /// 数据源注册表 + 日报 DAO。SQL 对照 Android `SourceDao`/`DailyReportDao`。
-struct SourceDao: Sendable {
+public struct SourceDao: Sendable {
     let db: any DatabaseWriter
 
+    public init(db: any DatabaseWriter) {
+        self.db = db
+    }
+
+    /// 响应式观察辅助（ValueObservation.tracking 用；排序同 orderingSQL）。
+    public static func subscribedSync(_ db: Database) throws -> [NoticeSourceRecord] {
+        try NoticeSourceRecord.fetchAll(
+            db,
+            sql: "SELECT * FROM notice_sources WHERE subscribed = 1 \(orderingSQL)"
+        )
+    }
+
     /// 置顶排序：subscribed DESC、seu-jwc 置顶、origin DESC、name ASC（照抄 Android）。
-    static let orderingSQL =
+    public static let orderingSQL =
         "ORDER BY subscribed DESC, CASE WHEN id = 'seu-jwc' THEN 0 ELSE 1 END, origin DESC, name ASC"
 
-    func getAll() async throws -> [NoticeSourceRecord] {
+    public func getAll() async throws -> [NoticeSourceRecord] {
         try await db.read { db in
             try NoticeSourceRecord.fetchAll(db, sql: "SELECT * FROM notice_sources \(Self.orderingSQL)")
         }
     }
 
-    func getById(id: String) async throws -> NoticeSourceRecord? {
+    public func getById(id: String) async throws -> NoticeSourceRecord? {
         try await db.read { db in
             try NoticeSourceRecord.fetchOne(
                 db, sql: "SELECT * FROM notice_sources WHERE id = ? LIMIT 1", arguments: [id]
@@ -23,7 +35,7 @@ struct SourceDao: Sendable {
         }
     }
 
-    func getSubscribed() async throws -> [NoticeSourceRecord] {
+    public func getSubscribed() async throws -> [NoticeSourceRecord] {
         try await db.read { db in
             try NoticeSourceRecord.fetchAll(
                 db,
@@ -32,11 +44,11 @@ struct SourceDao: Sendable {
         }
     }
 
-    func upsert(_ source: NoticeSourceRecord) async throws {
+    public func upsert(_ source: NoticeSourceRecord) async throws {
         try await upsertAll([source])
     }
 
-    func upsertAll(_ sources: [NoticeSourceRecord]) async throws {
+    public func upsertAll(_ sources: [NoticeSourceRecord]) async throws {
         _ = try await db.write { db in
             for s in sources {
                 try db.execute(
@@ -59,7 +71,7 @@ struct SourceDao: Sendable {
         }
     }
 
-    func setSubscribed(id: String, subscribed: Bool) async throws {
+    public func setSubscribed(id: String, subscribed: Bool) async throws {
         _ = try await db.write { db in
             try db.execute(
                 sql: "UPDATE notice_sources SET subscribed = ? WHERE id = ?",
@@ -68,7 +80,7 @@ struct SourceDao: Sendable {
         }
     }
 
-    func updateResult(id: String, timestamp: Int64, count: Int, error: String?) async throws {
+    public func updateResult(id: String, timestamp: Int64, count: Int, error: String?) async throws {
         _ = try await db.write { db in
             try db.execute(
                 sql: """
@@ -80,7 +92,7 @@ struct SourceDao: Sendable {
         }
     }
 
-    func deleteById(id: String) async throws {
+    public func deleteById(id: String) async throws {
         _ = try await db.write { db in
             try db.execute(sql: "DELETE FROM notice_sources WHERE id = ?", arguments: [id])
         }

@@ -17,7 +17,7 @@ App SHALL 提供五个顶层 tab：Chat、DailyReport、News、Timetable、Me（
 - **THEN** 显示占位视图，无任何数据层调用
 
 ### Requirement: 内置数据源播种
-首次运行（sources 表为空）时，App SHALL 从内置资产枚举 `sources/*.js` 解析 manifest（@id/@name/@labels/@domains/@scheduleMinutes）并 upsert 进 sources 表，默认仅订阅 `seu-jwc`；已记录于 `deletedSourceIds` 的内置源 SHALL 跳过播种。再次启动 SHALL 幂等（不重复插入、不覆盖用户订阅状态）。
+首次运行（sources 表为空）时，App SHALL 从内置资产枚举 `sources/*.js` 解析 manifest（@id/@name/@labels/@domains/@scheduleMinutes）并 upsert 进 sources 表，默认仅订阅 `seu-jwc`；已记录于 `deletedSourceIds` 的内置源 SHALL 重新装回但默认不订阅，并清除该删除记录（对齐 Android `SourceRegistry.syncBuiltIns`）。再次启动 SHALL 幂等（不重复插入、不覆盖用户订阅状态）。
 
 #### Scenario: 首次启动播种
 - **WHEN** App 在空库上首次启动

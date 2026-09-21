@@ -68,14 +68,15 @@ iOS 无 Android Intent extras，对齐语义映射：通知 `userInfo` 键沿用
 
 | 文件 | 类型/成员 | 用途 |
 |---|---|---|
-| `ScriptTypes.swift` | `ScriptManifest`、`ScriptNotice`、解析入口 | SourceRegistry 播种 + 抓取结果 |
-| `JavaScriptHost.swift` | `JavaScriptHost` 类与 `CrawlParams` | NewsCrawlService 驱动 |
-| `Database/DAO/*.swift` | 各 DAO 查询方法与 record | Store/列表/收藏/详情查询 |
-| `Models/*.swift` | 8 组 record 类型 | UI 直接消费 |
-| `Settings/SettingsStore.swift` | `UserSettings`/`LlmPrefs` | freshDays 等读取 |
-| `Corpus.swift` | `NoticeCorpus` | 抓取落库复用 DAO 路径 |
+| `ScriptTypes.swift` | `ScriptManifest`、`ScriptNotice`、解析入口（已 public） | SourceRegistry 播种 + 抓取结果 |
+| `JavaScriptHost.swift` | `JavaScriptHost` 类、`ScriptRunParams`、`ScriptOutcome`、`ScriptSandbox`（已 public） | NewsCrawlService 驱动 |
+| `Database/DAO/*.swift` | `NoticeDao`/`SourceDao` 查询方法与 `LabelCount`/`NoticeSearchQuery`；新增静态同步查询（favorites/count/subscribedSources）供 ValueObservation.tracking 用 | Store/列表/收藏/详情查询 + 响应式桥接 |
+| `Models/SourceAndReport.swift` | `NoticeRecord`、`NoticeSourceRecord` | UI 直接消费 |
+| `Models/ColumnTypes.swift` | `JSONStringList` | Record 字段类型 |
+| `Settings/SettingsStore.swift` | `UserSettings`/`LlmPrefs`（已 public） | freshDays 等读取 |
+| `Corpus.swift` | 本阶段**无需 public 化**（NewsCrawlService 直接用 DAO，不经 NoticeCorpus 协议），留阶段 5 Agent 接入时再扩 | — |
 
-不改语义、不加新 API（NewsCrawl 新增除外）；40 项既有测试必须保持绿。
+不改语义、不加新 API（NewsCrawl 新增与观察辅助静态查询除外）；40 项既有测试必须保持绿。
 
 ## project.yml 变更
 
@@ -87,7 +88,7 @@ iOS 无 Android Intent extras，对齐语义映射：通知 `userInfo` 键沿用
 ## 边界与错误处理
 
 - 空库首启：播种 → 空列表态（「下拉获取资讯」引导）。
-- 抓取中断网：逐源失败事件入日志面板，已完成源保留；`lastRunAt` 仅成功源更新。
+- 抓取中断网：逐源失败事件入日志面板，已完成源保留；失败源同样回写 `updateResult(now, count=0, error)`（对齐 Android SourceRunner catch 分支），成功源回写 count + 警告摘要。
 - 详情内容缺失（contentVersion 落后）：显示基础字段 + 提示，不阻塞浏览。
 - 图片加载失败：占位图 + 重试按钮。
 

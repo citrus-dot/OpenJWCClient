@@ -3,44 +3,85 @@ import GRDB
 
 // MARK: - notices
 
-struct NoticeRecord: Codable, FetchableRecord, PersistableRecord, Equatable {
-    static let databaseTableName = "notices"
+public struct NoticeRecord: Codable, FetchableRecord, PersistableRecord, Equatable, Sendable {
+    public static let databaseTableName = "notices"
 
-    var id: String
-    var sourceId: String?
-    var label: String
-    var title: String
+    public var id: String
+    public var sourceId: String?
+    public var label: String
+    public var title: String
     /// 毫秒 epoch（两端一致）。
-    var publishedAt: Int64
+    public var publishedAt: Int64
     /// yyyy-MM-dd。
-    var publishedDay: String
-    var detailUrl: String
-    var isPage: Bool
-    var content: String?
-    var contentVersion: Int
-    var attachments: JSONStringList?
-    var fetchedAt: Int64
-    var notified: Bool
-    var favorite: Bool
+    public var publishedDay: String
+    public var detailUrl: String
+    public var isPage: Bool
+    public var content: String?
+    public var contentVersion: Int
+    public var attachments: JSONStringList?
+    public var fetchedAt: Int64
+    public var notified: Bool
+    public var favorite: Bool
+
+    public init(
+        id: String, sourceId: String?, label: String, title: String,
+        publishedAt: Int64, publishedDay: String, detailUrl: String, isPage: Bool,
+        content: String?, contentVersion: Int, attachments: JSONStringList?,
+        fetchedAt: Int64, notified: Bool, favorite: Bool
+    ) {
+        self.id = id
+        self.sourceId = sourceId
+        self.label = label
+        self.title = title
+        self.publishedAt = publishedAt
+        self.publishedDay = publishedDay
+        self.detailUrl = detailUrl
+        self.isPage = isPage
+        self.content = content
+        self.contentVersion = contentVersion
+        self.attachments = attachments
+        self.fetchedAt = fetchedAt
+        self.notified = notified
+        self.favorite = favorite
+    }
 }
 
 // MARK: - notice_sources
 
-struct NoticeSourceRecord: Codable, FetchableRecord, PersistableRecord, Equatable {
-    static let databaseTableName = "notice_sources"
+public struct NoticeSourceRecord: Codable, FetchableRecord, PersistableRecord, Equatable, Sendable {
+    public static let databaseTableName = "notice_sources"
 
-    var id: String
-    var name: String
-    var version: String
-    var origin: String
-    var scriptFile: String?
-    var domains: JSONStringList
-    var labels: JSONStringList
-    var scheduleMinutes: Int
-    var subscribed: Bool
-    var lastRunAt: Int64?
-    var lastCount: Int
-    var lastError: String?
+    public var id: String
+    public var name: String
+    public var version: String
+    public var origin: String
+    public var scriptFile: String?
+    public var domains: JSONStringList
+    public var labels: JSONStringList
+    public var scheduleMinutes: Int
+    public var subscribed: Bool
+    public var lastRunAt: Int64?
+    public var lastCount: Int
+    public var lastError: String?
+
+    public init(
+        id: String, name: String, version: String, origin: String, scriptFile: String?,
+        domains: JSONStringList, labels: JSONStringList, scheduleMinutes: Int,
+        subscribed: Bool, lastRunAt: Int64?, lastCount: Int, lastError: String?
+    ) {
+        self.id = id
+        self.name = name
+        self.version = version
+        self.origin = origin
+        self.scriptFile = scriptFile
+        self.domains = domains
+        self.labels = labels
+        self.scheduleMinutes = scheduleMinutes
+        self.subscribed = subscribed
+        self.lastRunAt = lastRunAt
+        self.lastCount = lastCount
+        self.lastError = lastError
+    }
 }
 
 // MARK: - daily_reports

@@ -74,7 +74,8 @@ public struct UserSettings: Codable, Equatable, Sendable {
 
 /// 用户设置存储：UserDefaults 双命名域对位 Android 两个 DataStore（llm_prefs / user_settings）。
 /// 本阶段提供快照读写；值观察（AsyncStream 桥接 KVO）留到 UI 阶段实现。
-public struct SettingsStore {
+/// UserDefaults 本身线程安全，跨 actor 持有安全（@unchecked）。
+public struct SettingsStore: @unchecked Sendable {
     private let llmDefaults: UserDefaults
     private let settingsDefaults: UserDefaults
 

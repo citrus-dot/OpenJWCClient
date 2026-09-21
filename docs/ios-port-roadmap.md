@@ -2,7 +2,7 @@
 
 > **文档用途**：`/Users/orange/OpenJWC_4ios` 工作区 iOS 移植项目的完整交接与路线规划，供任何新会话（agent 切换）直接接手。本文档自包含：决策链、用户原话存档、已完成工作及**逐项查验命令**、后续路线、风险清单。进度真源 = 本文档 + 项目记忆（ZCode memory / ai-memory）。
 >
-> **最近更新**：2026-09-21（新会话接手核验：Tahoe 已升级、测试数修正为 40/10、环境表刷新）　**前版**：2026-09-20（阶段 1–3 完成后由实施会话重写）
+> **最近更新**：2026-09-21（阶段 4 资讯 UI 实施完成：core public 化 + SourceRegistry/NewsCrawlService + 全部资讯 UI + 39 源冒烟 0 失败；详见 §5 阶段 4 小节）　**前版**：2026-09-21（新会话接手核验：Tahoe 已升级、测试数修正为 40/10、环境表刷新）
 
 ---
 
@@ -82,7 +82,7 @@
 | 发布签名 | 免费 Apple ID（7 天签名/侧载） | — |
 
 **环境坑（已踩过）**：
-1. macOS 文件系统大小写不敏感，`/tmp` 产物曾撞名；2. 新旧 Xcode 同路径安装时 `xcode-select` 天然生效无需 sudo；3. Xcode 只能从 developer.apple.com/download/all 下 xip（App Store 渠道 26.4+ 要求 Tahoe 装不上）；4. 模拟器卡顿解法：Release 配置跑 UI（最大头）> 减弱动态效果 > 单设备 shutdown；日常 UI 优先 SwiftUI Preview；5. WebSearch/WebFetch 可能撞并发/配额限制，可用 mcp webReader 中转；6. **async 上下文禁用 DispatchSemaphore.wait**（Swift 6），Swift Testing 并行下信号量桥接会死锁（协作池占满互等）——测试直接 async。
+1. macOS 文件系统大小写不敏感，`/tmp` 产物曾撞名；2. 新旧 Xcode 同路径安装时 `xcode-select` 天然生效无需 sudo；3. Xcode 只能从 developer.apple.com/download/all 下 xip（App Store 渠道 26.4+ 要求 Tahoe 装不上）；4. 模拟器卡顿解法：Release 配置跑 UI（最大头）> 减弱动态效果 > 单设备 shutdown；日常 UI 优先 SwiftUI Preview；5. WebSearch/WebFetch 可能撞并发/配额限制，可用 mcp webReader 中转；6. **async 上下文禁用 DispatchSemaphore.wait**（Swift 6），Swift Testing 并行下信号量桥接会死锁（协作池占满互等）——测试直接 async；7. **Xcode 大版本升级后首次命令行构建**需 `xcodebuild -runFirstLaunch` 补组件 + `-downloadPlatform iOS` 重下平台资产（26.6 首次构建即遇；`-downloadPlatform` 会自动连带装 Simulator runtime，勿误跑 `-downloadAllPlatforms`——曾误下 watchOS 3.7G 已删）；8. **NSLock/OSAllocatedUnfairLock 在 async 上下文**：Swift 6 禁止 async 函数体直接 lock()，且 OSAllocatedUnfairLock 要求 State: Sendable——跨域传非 Sendable 值（如 UNNotificationResponse）应先提取 Sendable 字段（DeepLink）再走 AsyncStream 桥；9. **MarkdownUI 2.4 实际 API**：`Markdown(_ content:)` 无主题尾闭包（用 `.markdownTheme()`）、主题预设是 `.basic/.gitHub/.docC`（无 gitbook）、`ImageProvider` 协议方法为 `makeImage(url: URL?)`、TextStyle 用 `ForegroundColor` 非 ForegroundStyle；10. **shell 管道 tail 会缓冲 swift test 输出**到进程结束——长跑测试想看进度须输出到文件后轮询。
 
 ## 5. 已完成工作（阶段 0–3）与查验命令
 
@@ -136,6 +136,28 @@ swift test 2>&1 | grep "Test run with"
 
 **工作区 git 状态（2026-09-21 更新）**：iOS 产出已提交并推送至用户 fork——远端 `origin` = `citrus-dot/OpenJWCClient`（用户 fork），`upstream` = `OpenJWC/OpenJWCClient`（原仓库，Android 活跃开发真源，拉更新用）。提交链 `92ae0d5 → c813e61 (chore gitignore) → 657eaa3 (feat OpenJWCCore 包) → af7f4ad (feat app 脚手架/openspec/roadmap)`，已推送 `feat/on-device-ai` 并建立跟踪。`.gitignore` 覆盖：xcodeproj 生成物、.build、.mimosa、.workbuddy、.trae、.agents。提交者身份已按用户要求统一为 GitHub 账号 **citrus-dot**（noreply 邮箱，`git config --global` 已设置，历史提交已 reset-author 重写并 force-push）。
 
+### 阶段 4 — 资讯 UI ✅（2026-09-21 实施完成，剩 9.3 用户手验）
+
+**OpenSpec change `ios-news-ui`**（proposal/specs/design/tasks 四件套在 `openspec/changes/ios-news-ui/`，实施前已按 Android 真源修正两处契约：播种对已删内置源是「装回且默认不订阅并清删除记录」而非「跳过」；抓取失败也回写 lastRunAt+lastError）。`openspec validate` 通过；tasks 26/27 已勾（仅 9.3 手验待用户）。
+
+**产出**：
+- core 新增 `NewsCrawl/`：`SourceRegistry.syncBuiltIns(scriptDirectory:)`（幂等播种，返回 SyncResult）+ `NewsCrawlService`（actor：`AsyncStream<CrawlEvent>` 逐源编排、防重入、取消传播、收藏/水位保留、contentVersion=1 补抓判定、buildWarning/summarize 逐字对齐 Android）。
+- core public 化最小集：`NoticeRecord`/`NoticeSourceRecord`（全字段 public + 显式 init，Sendable）、`JSONStringList`、`NoticeDao`/`SourceDao` 资讯路径方法 + 新增静态同步查询 `favoritesSync/totalCountSync/subscribedSync`（ValueObservation.tracking 用，D-2 链式模式不标返回类型）。
+- app 全量重建（`ios/OpenJWC/`）：`AppEnvironment`（@MainActor 组合根 + bootstrap 播种）、`AppRouter`（DeepLink 路由）、`AppShellView`（五 tab，iOS 26 `tabBarMinimizeBehavior` 就地采用）、News 全套（NewsListView 栏目 tab + 自适应 1/2/3 列网格 + 倒数第 2 项预载 + 下拉刷新；NewsCardView fresh 高亮；SourceFilterSheet；FavoriteListView；NewsDetailView MarkdownUI + ScrollPosition 滚动恢复 + 附件/浏览器外链；ImageViewer 缩放/分享/重试；CrawlProgressPanel 进度/日志/取消；ReactiveStore 三观察；NewsStore 分页状态机；CrawlCoordinator 事件→UI）。
+- 39 个脚本资产以 folder reference 打包进 app（`ios/OpenJWC/Resources/Sources/`）。
+
+**自动化验收（已过）**：
+```bash
+cd /Users/orange/OpenJWC_4ios/Packages/OpenJWCCore
+swift test --filter AllSourcesSmoke   # 39 源真实抓取：0 致命失败、累计 2787 条、35 警告源均为附件/PDF 正文暂缺类（Android 同源）~25min
+swift test                            # 全量 51 tests / 13 suites（基线 40 + 播种 3 + 编排 6 + 冒烟 1 + 1 抽验）需外网
+cd /Users/orange/OpenJWC_4ios/ios && xcodegen generate
+xcodebuild -scheme OpenJWC -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO build
+# 模拟器已实测：App 启动 → 落资讯 tab → 39 源播种（DB 验证 39 条、仅 seu-jwc subscribed）→ 栏目/空态渲染正常
+```
+
+**待办（9.3 用户手验）**：下拉刷新真实抓取（模拟器无法自动化手势）、源筛选、收藏/清空、详情 Markdown/图片/附件、调试铃铛（#if DEBUG）三连通知验深链（含无效 id 降级）。本机无签名身份（免费 Apple ID 未登录 Xcode），Mac（Designed for iPhone/iPad）运行需用户在 Xcode 登录后选 Personal Team；模拟器无需签名可直接跑。
+
 ## 6. 已知技术决策记录（实施期沉淀）
 
 1. **GRDB 7 两个坑**：① `ValueObservation.tracking` 的 `-> Self where Reducer == ValueReducers.Fetch<Value>` 约束使方法标注 `-> ValueObservation<[T]>` 编译失败——observation API 推迟到 UI 接线阶段（阶段 4），届时用官方推荐模式；② 同时 conform `Codable` + `DatabaseValueConvertible` 的包装类型必须自定义 `init(from:)`（顶层数组语义），否则 record 解码报 "could not decode"。
@@ -164,10 +186,8 @@ swift test 2>&1 | grep "Test run with"
 
 **依赖链**：~~1 → {2, 3}~~（✅ 已完成）→ ~~等 Tahoe~~（✅ 2026-09-21 核验已升 26.6.2）→ {4, 5, 6} → 7 → 8。**阶段 4 当前可开工**，仅剩 D9（Xcode 版本）待用户拍板。
 
-### 阶段 4 — 资讯 UI（Tahoe 已就位，Mac 原生）▶ 可开工
-资讯流 / 源筛选 chips / 收藏 / 详情（Markdown 渲染）/ 图片查看器 / 附件选择器 / 通知深链跳转。
-**开工前置**：① core 包 public 化（阶段 3 的 internal 类型）；② OpenSpec 立案（proposal→specs→design→tasks→用户评审）；③ 重建 `ios/` app target 并接 core 包（**注意**：现占位 `project.yml` 部署目标写的是 iOS 26.0，与 D6「iOS 18 baseline」不符，重建时需改回并补 OpenJWCTests 目录）；④ GRDB ValueObservation 流式 API 落地。
-**验收**：Mac destination（`My Mac (Designed for iPhone)`）流畅运行全流程；**39 个内置脚本全量离线冒烟**（JSC 宿主上逐脚本 manifest 解析 + 列表抓取回归，替代阶段 2 仅 3 站的抽验，逐源记录失败/告警对齐 Android 行为）。
+### 阶段 4 — 资讯 UI ✅（2026-09-21 完成，见 §5 阶段 4 小节；仅剩用户手验 9.3）
+资讯流 / 源筛选 / 收藏 / 详情（Markdown 渲染）/ 图片查看器 / 通知深链跳转已全部实现并过自动化验收。附件选择器（长按加入附件）属收藏/附件管理细分，随阶段 5 Me 设置中心一并补。
 
 ### 阶段 5 — 聊天 + 日报 + Me 设置中心（Tahoe 后）
 流式气泡 / 工具卡片（资讯深链）/ 会话管理 / 日报页 + 手动生成（`PromptTemplates.dailyBatchQuery/dailyMergeQuery` 已备）。
@@ -198,15 +218,14 @@ Liquid Glass **兜底全覆盖**（策略：各 UI 阶段实现时即就地采�
    （注：原指引引用的 ZCode `MEMORY.md` 及其索引 6 篇在本工作区不存在，ai-memory 服务器未接入当前会话；本文档已按「自包含」标准补全，2026-09-21 接手会话实测可独立开工。）
 2. **状态查验**（先跑再说）：
    ```bash
-   sw_vers | grep ProductVersion            # ✅ 26.6.2 Tahoe（阶段 4 前置已满足）
-   xcodebuild -version                       # ✅ 26.6 (17F113)（D9 已落定）
+   sw_vers | grep ProductVersion            # ✅ 26.6.2 Tahoe
+   xcodebuild -version                       # ✅ 26.6 (17F113)
    cd /Users/orange/OpenJWC_4ios/Packages/OpenJWCCore && swift test 2>&1 | grep "Test run with"
-   # 期望 40 tests / 10 suites passed（离线时 ScriptAcceptance 3 项 + LLMKeyAcceptance
-   # 需外网/Key 的用例失败属正常，基线 37 tests / 8 suites）
+   # 期望 51 tests / 13 suites passed（含 39 源冒烟 ~25min；离线时 ScriptAcceptance/LLMKey/
+   # AllSourcesSmoke 需外网/Key 的用例失败属正常，此时基线约 43 tests / 10 suites）
    ```
 3. **接手场景**：
-   - ✅ 用户已升 Tahoe（26.6.2）→ 阶段 4 可开工：先 OpenSpec 立案 + public 化 + 重建 ios/ app target（按 D6 修部署目标）。
-   - ~~D9 Xcode 选型~~（✅ 已落定 Xcode 26.6，见下方记录）。
+   - ✅ 阶段 4 已完成 → 下一步：用户手验 9.3（清单见 §5 阶段 4 小节）→ `openspec archive ios-news-ui` → 阶段 5 立案（聊天 + 日报 + Me 设置中心）。
 4. **流程纪律**：非平凡改动走 OpenSpec（proposal→specs→design→tasks→用户评审→实现→archive）；用户偏好决策征询格式（决策点/候选/利弊表/推荐/追问）。
 5. **待用户确认项**：~~D8 删 runtime~~（已执行）；~~Tahoe 升级~~（✅ 26.6.2）；~~真实 LLM Key~~（联测已完成，Key 留存 `~/.openjwc-llm-key` 供阶段 5 聊天联调）；~~D9 Xcode 版本~~（✅ 26.6 已装并复验）。**无待办阻塞，阶段 4 开工。**
 

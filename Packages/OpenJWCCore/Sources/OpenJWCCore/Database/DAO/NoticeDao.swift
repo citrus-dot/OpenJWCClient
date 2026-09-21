@@ -29,8 +29,27 @@ struct NoticeSearchQuery: Equatable {
 
 /// 本地资讯语料 DAO：资讯流、收藏、通知水位、Agent 检索共用。
 /// SQL 逐条对照 Android `NoticeDao`（LIKE 检索不用 FTS 的理由同 Android：SQLite 默认分词器切不了中文）。
-struct NoticeDao: Sendable {
+public struct NoticeDao: Sendable {
     let db: any DatabaseWriter
+
+    public init(db: any DatabaseWriter) {
+        self.db = db
+    }
+
+    /* ================= 响应式观察辅助（ValueObservation.tracking 用同步查询） ================= */
+
+    /// 收藏列表（对齐 Android observeFavorites：`favorite = 1 ORDER BY publishedAt DESC, id DESC`）。
+    public static func favoritesSync(_ db: Database) throws -> [NoticeRecord] {
+        try NoticeRecord.fetchAll(
+            db,
+            sql: "SELECT * FROM notices WHERE favorite = 1 ORDER BY publishedAt DESC, id DESC"
+        )
+    }
+
+    /// 资讯总数（对齐 Android observeCount）。
+    public static func totalCountSync(_ db: Database) throws -> Int {
+        try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM notices") ?? 0
+    }
 
     /* ================= 资讯流 ================= */
 
@@ -49,13 +68,13 @@ struct NoticeDao: Sendable {
         }
     }
 
-    func totalCount() async throws -> Int {
+    public func totalCount() async throws -> Int {
         try await db.read { db in
             try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM notices") ?? 0
         }
     }
 
-    func clearAll() async throws {
+    public func clearAll() async throws {
         _ = try await db.write { db in
             try db.execute(sql: "DELETE FROM notices")
         }
@@ -63,7 +82,7 @@ struct NoticeDao: Sendable {
 
     /* ================= 写入（@Upsert 语义） ================= */
 
-    func upsertAll(_ items: [NoticeRecord]) async throws {
+    public func upsertAll(_ items: [NoticeRecord]) async throws {
         _ = try await db.write { db in
             for item in items {
                 try db.execute(
@@ -89,11 +108,11 @@ struct NoticeDao: Sendable {
         }
     }
 
-    func selectFavoriteIds(ids: [String]) async throws -> [String] {
+    public func selectFavoriteIds(ids: [String]) async throws -> [String] {
         try await idsFiltering(ids, column: "favorite")
     }
 
-    func selectNotifiedIds(ids: [String]) async throws -> [String] {
+    public func selectNotifiedIds(ids: [String]) async throws -> [String] {
         try await idsFiltering(ids, column: "notified")
     }
 
@@ -109,11 +128,11 @@ struct NoticeDao: Sendable {
         }
     }
 
-    func markFavorites(ids: [String]) async throws {
+    public func markFavorites(ids: [String]) async throws {
         try await markFlag(ids: ids, column: "favorite", value: true)
     }
 
-    func markNotified(ids: [String]) async throws {
+    public func markNotified(ids: [String]) async throws {
         try await markFlag(ids: ids, column: "notified", value: true)
     }
 
@@ -130,19 +149,19 @@ struct NoticeDao: Sendable {
 
     /* ================= 收藏 ================= */
 
-    func setFavorite(id: String, favorite: Bool) async throws {
+    public func setFavorite(id: String, favorite: Bool) async throws {
         _ = try await db.write { db in
             try db.execute(sql: "UPDATE notices SET favorite = ? WHERE id = ?", arguments: [favorite, id])
         }
     }
 
-    func clearFavorites() async throws {
+    public func clearFavorites() async throws {
         _ = try await db.write { db in
             try db.execute(sql: "UPDATE notices SET favorite = 0")
         }
     }
 
-    func isFavorite(id: String) async throws -> Bool {
+    public func isFavorite(id: String) async throws -> Bool {
         try await db.read { db in
             try Bool.fetchOne(
                 db,
@@ -154,13 +173,13 @@ struct NoticeDao: Sendable {
 
     /* ================= 通知水位 ================= */
 
-    func idsBySource(sourceId: String) async throws -> [String] {
+    public func idsBySource(sourceId: String) async throws -> [String] {
         try await db.read { db in
             try String.fetchAll(db, sql: "SELECT id FROM notices WHERE sourceId = ?", arguments: [sourceId])
         }
     }
 
-    func notifiedIdsBySource(sourceId: String) async throws -> [String] {
+    public func notifiedIdsBySource(sourceId: String) async throws -> [String] {
         try await db.read { db in
             try String.fetchAll(
                 db,
@@ -170,7 +189,7 @@ struct NoticeDao: Sendable {
         }
     }
 
-    func countBySource(sourceId: String) async throws -> Int {
+    public func countBySource(sourceId: String) async throws -> Int {
         try await db.read { db in
             try Int.fetchOne(
                 db,
@@ -239,7 +258,7 @@ struct NoticeDao: Sendable {
     }
 
     /// 已有正文（或不需要正文）的条目 id；正文为空的条目留给脚本重试补全。
-    func idsWithContentBySource(sourceId: String, minVersion: Int) async throws -> [String] {
+    public func idsWithContentBySource(sourceId: String, minVersion: Int) async throws -> [String] {
         try await db.read { db in
             try String.fetchAll(
                 db,
@@ -263,7 +282,7 @@ struct NoticeDao: Sendable {
         }
     }
 
-    func findById(id: String) async throws -> NoticeRecord? {
+    public func findById(id: String) async throws -> NoticeRecord? {
         try await db.read { db in
             try NoticeRecord.fetchOne(db, sql: "SELECT * FROM notices WHERE id = ? LIMIT 1", arguments: [id])
         }
@@ -278,7 +297,7 @@ struct NoticeDao: Sendable {
         }
     }
 
-    func distinctLabelsBySource(sourceId: String?) async throws -> [String] {
+    public func distinctLabelsBySource(sourceId: String?) async throws -> [String] {
         try await db.read { db in
             try String.fetchAll(
                 db,

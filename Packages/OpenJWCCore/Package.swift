@@ -24,6 +24,13 @@ let package = Package(
                 .product(name: "SwiftSoup", package: "SwiftSoup"),
             ]
         ),
-        .testTarget(name: "OpenJWCCoreTests", dependencies: ["OpenJWCCore"]),
+        .testTarget(
+            name: "OpenJWCCoreTests",
+            dependencies: ["OpenJWCCore"],
+            resources: [
+                // 播种/抓取测试用假脚本资产（不依赖 app 的 39 个真实脚本，D-5）
+                .copy("Fixtures")
+            ]
+        ),
     ]
 )
