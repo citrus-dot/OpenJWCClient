@@ -26,7 +26,7 @@
 | D6 | 最低部署目标 | **iOS 18.0 baseline + `if #available(iOS 26.0, *)` Liquid Glass 增强**（方案 b'） | 2026-09-20 | core 包 platforms 声明 iOS 18/macOS 15 |
 | D7 | 时序 | **升 Tahoe 前：只做域层（阶段 1–3，macOS 单测驱动，零模拟器）；Tahoe 后：UI 阶段（4–8，My Mac 原生调试）** | 2026-09-20 | ✅ 阶段 1–3 已全部完成 |
 | D8 | 腾盘方案 | **已执行**：删除 iOS 26.3.1 模拟器 runtime（+16G，2026-09-20 用户确认后完成） | 2026-09-20 | 模拟器设备定义保留（无害）；Tahoe 后 UI 走 Mac 原生调试 |
-| D9 | Xcode 26.3 → 26.4+ 升级与否 | **调研中**：Tahoe（26.6.2）已就位后可装 26.4+；选型方案已交用户，等安装确认后再定 | 2026-09-21 | 见 §10「Xcode 选型」小节 |
+| D9 | Xcode 26.3 → 26.4+ 升级与否 | **已执行：升 Xcode 26.6 (17F113)**（26 系列终态稳定版），40/10 测试基线复验通过，xip 已清理 | 2026-09-21 | 选型对比存档见 §10 |
 
 **背景推论**：Android 作者选型已向 CMP 生态靠（miuix/MaterialKolor/Coil3 均为 KMP 库），但 Nironta 拍板原生重写；目录名 `OpenJWC_4ios` 印证 iOS 化是既定方向。
 
@@ -69,7 +69,7 @@
 |---|---|---|
 | 机型 / 芯片 / 内存 | MacBook Air / Apple M4 / **16G** | `sysctl hw.model` |
 | macOS | **26.6.2 (Tahoe) 已升级**（2026-09-21 核验；阶段 4 前置条件已满足，UI 走 My Mac 原生调试） | `sw_vers` |
-| Xcode | **26.3 (17C529)** 已装，license/first-launch 已过；是否升 26.4+ 见 D9 | `xcodebuild -version` |
+| Xcode | **26.6 (17F113)** 已装（2026-09-21 由 26.3 升级，同路径覆盖），Swift 6.3 / iOS 26.5 SDK | `xcodebuild -version` |
 | iOS 模拟器 runtime | **已删除**（D8），Disk Images 0 | `xcrun simctl runtime list` |
 | 磁盘 | 可用 **62G**（2026-09-21 实测，Tahoe 安装后反而宽裕） | `df -g /` |
 | 工具 | xcodegen 2.46.0、aria2 1.37.0（brew）；JDK17（Android 端用） | `xcodegen --version` |
@@ -129,7 +129,7 @@ swift test 2>&1 | grep "Test run with"
 
 其余产出：`ios/`（XcodeGen 占位 app：`project.yml` + `OpenJWCApp.swift`，阶段 4 接线用）、`openspec/`（含归档 change）。
 
-**工作区 git 状态（2026-09-21 更新）**：iOS 产出已提交并推送至用户 fork——远端 `origin` = `citrus-dot/OpenJWCClient`（用户 fork），`upstream` = `OpenJWC/OpenJWCClient`（原仓库，Android 活跃开发真源，拉更新用）。提交链 `92ae0d5 → c813e61 (chore gitignore) → 657eaa3 (feat OpenJWCCore 包) → af7f4ad (feat app 脚手架/openspec/roadmap)`，已推送 `feat/on-device-ai` 并建立跟踪。`.gitignore` 覆盖：xcodeproj 生成物、.build、.mimosa、.workbuddy、.trae、.agents。提交者身份为 git 自动推导（Orange <orange@Mac.lan>），如需改名请用户自行 `git config --global`。
+**工作区 git 状态（2026-09-21 更新）**：iOS 产出已提交并推送至用户 fork——远端 `origin` = `citrus-dot/OpenJWCClient`（用户 fork），`upstream` = `OpenJWC/OpenJWCClient`（原仓库，Android 活跃开发真源，拉更新用）。提交链 `92ae0d5 → c813e61 (chore gitignore) → 657eaa3 (feat OpenJWCCore 包) → af7f4ad (feat app 脚手架/openspec/roadmap)`，已推送 `feat/on-device-ai` 并建立跟踪。`.gitignore` 覆盖：xcodeproj 生成物、.build、.mimosa、.workbuddy、.trae、.agents。提交者身份已按用户要求统一为 GitHub 账号 **citrus-dot**（noreply 邮箱，`git config --global` 已设置，历史提交已 reset-author 重写并 force-push）。
 
 ## 6. 已知技术决策记录（实施期沉淀）
 
@@ -193,26 +193,26 @@ Liquid Glass 全覆盖 / Dynamic Type / Dark Mode / xcstrings 5 语言（zh/en/j
 2. **状态查验**（先跑再说）：
    ```bash
    sw_vers | grep ProductVersion            # ✅ 26.6.2 Tahoe（阶段 4 前置已满足）
-   xcodebuild -version                       # 当前 26.3；最终版本以 D9 结论为准
+   xcodebuild -version                       # ✅ 26.6 (17F113)（D9 已落定）
    cd /Users/orange/OpenJWC_4ios/Packages/OpenJWCCore && swift test 2>&1 | grep "Test run with"
    # 期望 40 tests / 10 suites passed（离线时 ScriptAcceptance 3 项 + LLMKeyAcceptance
    # 需外网/Key 的用例失败属正常，基线 37 tests / 8 suites）
    ```
 3. **接手场景**：
    - ✅ 用户已升 Tahoe（26.6.2）→ 阶段 4 可开工：先 OpenSpec 立案 + public 化 + 重建 ios/ app target（按 D6 修部署目标）。
-   - D9 Xcode 选型：见下方「Xcode 选型记录」小节，用户确认安装后按结论执行。
+   - ~~D9 Xcode 选型~~（✅ 已落定 Xcode 26.6，见下方记录）。
 4. **流程纪律**：非平凡改动走 OpenSpec（proposal→specs→design→tasks→用户评审→实现→archive）；用户偏好决策征询格式（决策点/候选/利弊表/推荐/追问）。
-5. **待用户确认项**：~~D8 删 runtime~~（已执行）；~~Tahoe 升级~~（✅ 26.6.2，2026-09-21 核验）；~~真实 LLM Key~~（联测已完成，Key 留存 `~/.openjwc-llm-key` 供阶段 5 聊天联调）；**D9 Xcode 版本**（调研中）。
+5. **待用户确认项**：~~D8 删 runtime~~（已执行）；~~Tahoe 升级~~（✅ 26.6.2）；~~真实 LLM Key~~（联测已完成，Key 留存 `~/.openjwc-llm-key` 供阶段 5 聊天联调）；~~D9 Xcode 版本~~（✅ 26.6 已装并复验）。**无待办阻塞，阶段 4 开工。**
 
-### Xcode 选型记录（D9，2026-09-21 调研完成，待用户拍板）
+### Xcode 选型记录（D9，✅ 2026-09-21 落定：方案 A，Xcode 26.6）
 
-**现状**：Xcode 26.3 (17C529) 装于 macOS Tahoe 26.6.2，可用。
+**结论**：升级至 **Xcode 26.6 (17F113)**（26 系列最终稳定版，Swift 6.3 / iOS 26.5 SDK）。验证：`xcodebuild -version` 确认 26.6；`swift test` 复验 **40 tests / 10 suites passed**（84.5s，含真实抓取与真实 Key 联测）；xip（2.3G）验证通过后已清理。用户 xip 渠道安装（App Store 渠道未采用）。
 
-**官方版本事实**（来源：developer.apple.com/xcode/system-requirements，2026-09-21 查询）：
+**当时调研对比存档**（来源：developer.apple.com/xcode/system-requirements，2026-09-21 查询）：
 
 | Xcode | 系统要求 | SDK | Swift 编译器 | 状态 |
 |---|---|---|---|---|
-| 26.3（现装） | Sequoia 15.6 – Tahoe 26.x | iOS 26.2 | 6.2.3 | 稳定 |
+| 26.3（升级前） | Sequoia 15.6 – Tahoe 26.x | iOS 26.2 | 6.2.3 | 稳定 |
 | 26.4.1 | Tahoe 26.2+ | iOS 26.4 | 6.3 | 稳定 |
 | 26.5 / 26.6 | Tahoe 26.2+ | iOS 26.5 | 6.3 | 稳定（26.6 = 26 系列最新） |
 | 27 (27A266a) | **Tahoe 26.6+** | iOS 27 | 6.4 | 稳定但 2026-09-14 刚发（.0） |
@@ -225,5 +225,4 @@ Liquid Glass 全覆盖 / Dynamic Type / Dark Mode / xcstrings 5 语言（zh/en/j
 - B：留 26.3——零下载成本，阶段 4–6 功能上够用；缺点：sanitizer 挂起、Swift 6.2.3 渐旧、26 系列将停止接收 App Store 提交类支持（本项目免费侧载不受影响，属远期）。
 - C：升 Xcode 27.0——**不推荐**：.0 发布仅 7 天且 27.1/27.2 beta 已在滚（印证修复期）；iOS 27 SDK 非本项目所需；与用户避开 macOS 27.0 的策略自相矛盾。
 
-**安装路径（选 A 时）**：优先 App Store（Tahoe 已满足 26.4+ 要求，免 xip 免 sudo）；或沿用 26.3 的方式从 developer.apple.com/download/all 下 xip（aria2）。装完验证：`xcodebuild -version` → 重跑 `swift test`（40/10 基线）。
-**用户确认后本节落定结论并更新 D9 状态。**
+**安装路径（实际采用）**：xip 渠道（developer.apple.com/download/all，2.3G），解压覆盖 `/Applications/Xcode.app`，`xcode-select` 路径不变。装完验证：`xcodebuild -version` → 重跑 `swift test`（40/10 基线）✅。
