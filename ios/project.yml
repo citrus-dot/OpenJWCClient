@@ -1,0 +1,56 @@
+name: OpenJWC
+options:
+  bundleIdPrefix: org.openjwc
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+
+packages:
+  GRDB:
+    url: https://github.com/groue/GRDB.swift
+    from: "7.11.1"
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+targets:
+  OpenJWC:
+    type: application
+    platform: iOS
+    sources:
+      - OpenJWC
+    dependencies:
+      - package: GRDB
+    info:
+      path: OpenJWC/Info.plist
+      properties:
+        CFBundleDisplayName: OpenJWC
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: false
+
+  OpenJWCTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - OpenJWCTests
+    dependencies:
+      - target: OpenJWC
+
+schemes:
+  OpenJWC:
+    build:
+      targets:
+        OpenJWC: all
+        OpenJWCTests: [test]
+    test:
+      targets:
+        - OpenJWCTests
