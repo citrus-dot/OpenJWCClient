@@ -10,7 +10,6 @@ struct ImageViewer: View {
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
     @State private var retryToken = 0
-    @State private var loadFailed = false
 
     var body: some View {
         ZStack {
@@ -26,6 +25,10 @@ struct ImageViewer: View {
                         .offset(offset)
                         .gesture(zoomGesture.simultaneously(with: panGesture))
                         .onTapGesture(count: 2) { reset() }
+                        // 单击退出（仅在未放大时；放大后单击用于收手势）
+                        .onTapGesture(count: 1) {
+                            if scale == 1 { onClose() }
+                        }
                 case .failure:
                     failureView
                 default:
@@ -33,22 +36,37 @@ struct ImageViewer: View {
                 }
             }
             .id(retryToken)
-        }
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    onClose()
-                } label: {
-                    Image(systemName: "xmark")
+
+            // 顶部控制条：fullScreenCover 内没有 NavigationStack，toolbar 不渲染，
+            // 因此用常驻 overlay 按钮保证关闭/分享入口始终可见
+            VStack {
+                HStack {
+                    circleButton("xmark", "关闭") { onClose() }
+                    Spacer()
+                    ShareLink(item: url) {
+                        circleButtonLabel("square.and.arrow.up")
+                    }
+                    .accessibilityLabel("分享")
                 }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                ShareLink(item: url) {
-                    Image(systemName: "square.and.arrow.up")
-                }
+                .padding(.horizontal, 20)
+                Spacer()
             }
         }
-        .toolbarBackground(.hidden, for: .navigationBar)
+    }
+
+    private func circleButton(_ systemName: String, _ label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            circleButtonLabel(systemName)
+        }
+        .accessibilityLabel(label)
+    }
+
+    private func circleButtonLabel(_ systemName: String) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(10)
+            .background(.ultraThinMaterial, in: Circle())
     }
 
     private var cacheBustedURL: URL {
@@ -62,7 +80,6 @@ struct ImageViewer: View {
                 .font(.system(size: 40))
                 .foregroundStyle(.white.opacity(0.6))
             Button("重试") {
-                loadFailed = false
                 retryToken += 1
             }
             .buttonStyle(.bordered)
