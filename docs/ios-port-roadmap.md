@@ -14,6 +14,10 @@
 - ⚠️ **Android 文档滞后于代码**：README 架构图/特性列表仍是服务端时代；PLAN.md 的 P1 工具清单、Room 版本号（实际 v14 非 v11）均落后。**理解 Android 端以代码为准**。
 - Android 端仍在活跃开发，iOS 端接受 feature lag，以 PLAN.md + 代码为共享功能真源。
 
+**组织全景（2026-09-21 调研，8 个公开仓库）**：OpenJWCClient（Android 客户端，本工作区真源）｜openjwc_webapi_golang（Go 单二进制新后端，openapi.yaml v1/v2 共 17 端点，云端版演进线）｜OpenJWC-webapi（Python 旧后端 RAG/语义搜索）｜JwcCrawler（Rust 爬虫）｜OpenJWC-Server（Docker 编排）｜openjwc-qqbot（QQ 推送机器人）｜OpenJWC-web-frontend（React 管理面板）｜.github（org profile）。**注意**：组织 README 链接的 API 文档等 5 篇均不存在；PLAN.md 仅 feat 分支有——一切以代码 + openapi.yaml 为准。**无设计资产仓库**，图标等资源需从客户端 `res/` 提取（MIT）。**iOS 端按 D10 只复刻 on-device 路线**，上述服务端仓库仅作行为对照参考。
+
+**feat 分支功能全集清单**（iOS「功能不缺失」对照口径）：本地 Agent 工具循环（11 工具/引用通知块/工具卡深链）、QuickJS 宿主 + **39 个内置学院脚本**（默认仅订阅教务处）、本地语料 + 离线缓存 + 来源筛选 + 收藏 + 图片查看 + Markdown 详情、本地日报生成、通知深链、**motto 格言（本地编辑器 + hitokoto.cn 在线一言，每日 1 次缓存）**、课程表（拖拽调课/课程提醒/小组件）、主题动画级别、LLM/格言/来源编辑器设置、README 完整用户协议呈现。
+
 ## 2. 决策链（全部已拍板，按时间序）
 
 | # | 决策 | 结论 | 日期 | 备注 |
@@ -27,6 +31,7 @@
 | D7 | 时序 | **升 Tahoe 前：只做域层（阶段 1–3，macOS 单测驱动，零模拟器）；Tahoe 后：UI 阶段（4–8，My Mac 原生调试）** | 2026-09-20 | ✅ 阶段 1–3 已全部完成 |
 | D8 | 腾盘方案 | **已执行**：删除 iOS 26.3.1 模拟器 runtime（+16G，2026-09-20 用户确认后完成） | 2026-09-20 | 模拟器设备定义保留（无害）；Tahoe 后 UI 走 Mac 原生调试 |
 | D9 | Xcode 26.3 → 26.4+ 升级与否 | **已执行：升 Xcode 26.6 (17F113)**（26 系列终态稳定版），40/10 测试基线复验通过，xip 已清理 | 2026-09-21 | 选型对比存档见 §10 |
+| D10 | 功能对照基准 | **纯 on-device**：以 `feat/on-device-ai` 分支为功能全集（= master 全部 + 本地 AI 增强，ahead 1/behind 0）。投稿/设备绑定/连服务器为云端版历史功能，Android 作者已裁剪，iOS 同步裁剪并声明；域层 Repository 协议天然预留未来云端扩展（如需则另立 OpenSpec 案） | 2026-09-21 | 组织全景见 §1；云端版=Go 后端 openapi.yaml v1/v2 17 端点 |
 
 **背景推论**：Android 作者选型已向 CMP 生态靠（miuix/MaterialKolor/Coil3 均为 KMP 库），但 Nironta 拍板原生重写；目录名 `OpenJWC_4ios` 印证 iOS 化是既定方向。
 
@@ -162,11 +167,12 @@ swift test 2>&1 | grep "Test run with"
 ### 阶段 4 — 资讯 UI（Tahoe 已就位，Mac 原生）▶ 可开工
 资讯流 / 源筛选 chips / 收藏 / 详情（Markdown 渲染）/ 图片查看器 / 附件选择器 / 通知深链跳转。
 **开工前置**：① core 包 public 化（阶段 3 的 internal 类型）；② OpenSpec 立案（proposal→specs→design→tasks→用户评审）；③ 重建 `ios/` app target 并接 core 包（**注意**：现占位 `project.yml` 部署目标写的是 iOS 26.0，与 D6「iOS 18 baseline」不符，重建时需改回并补 OpenJWCTests 目录）；④ GRDB ValueObservation 流式 API 落地。
-**验收**：Mac destination（`My Mac (Designed for iPhone)`）流畅运行全流程。
+**验收**：Mac destination（`My Mac (Designed for iPhone)`）流畅运行全流程；**39 个内置脚本全量离线冒烟**（JSC 宿主上逐脚本 manifest 解析 + 列表抓取回归，替代阶段 2 仅 3 站的抽验，逐源记录失败/告警对齐 Android 行为）。
 
-### 阶段 5 — 聊天 + 日报（Tahoe 后）
+### 阶段 5 — 聊天 + 日报 + Me 设置中心（Tahoe 后）
 流式气泡 / 工具卡片（资讯深链）/ 会话管理 / 日报页 + 手动生成（`PromptTemplates.dailyBatchQuery/dailyMergeQuery` 已备）。
-**验收**：重启后工具轨迹从 DB 还原（对齐 Android 行为）。
+**Me tab 设置中心**（原散落项集中，D10 功能补全）：LLM 配置编辑器（provider/key/端点）｜**motto 格言**（本地编辑器 + hitokoto.cn 在线一言客户端，每日 1 次缓存 + 手动刷新，对齐 `HitokotoClient`）｜来源编辑器（订阅开关/scheduleMinutes）｜freshDays/抓取间隔等设置项｜用户协议页（README 协议原文呈现，强调非官方）。
+**验收**：重启后工具轨迹从 DB 还原（对齐 Android 行为）；motto 本地+在线双模式可切换。
 
 ### 阶段 6 — 课表（Tahoe 后）
 周视图自定义 Layout（lane/segment 直译）/ 编辑器 / 长按拖拽 + 弹性落点 / JSON 导入导出。
@@ -175,16 +181,16 @@ swift test 2>&1 | grep "Test run with"
 BGTaskScheduler 抓取 + 日报 / 通知 + 深链 / 课程提醒 / WidgetKit。**注意语义差异**：iOS 后台调度不保证 Android WorkManager 的准 15 分钟轮询（产品文案要写）。
 
 ### 阶段 8 — 打磨发布（Tahoe 后）
-Liquid Glass 全覆盖 / Dynamic Type / Dark Mode / xcstrings 5 语言（zh/en/ja/ko/zh-rTW）/ 三层图标 / 免费签名侧载 / 隐私文案（README 用户协议可复用，强调非官方）。
+Liquid Glass **兜底全覆盖**（策略：各 UI 阶段实现时即就地采用 `if #available(iOS 26.0, *)` 玻璃效果，本阶段统一查漏）/ Dynamic Type / Dark Mode / xcstrings 5 语言（zh/en/ja/ko/zh-rTW，对齐 Android 4 套 values）/ 三层图标（从 Android `res/` 提取重绘，无设计资产仓库）/ 免费签名侧载 / 隐私文案（强调非官方）。
 
 ## 9. 风险清单
 
 1. **后台时效**：BGTaskScheduler 不保证准 15 分钟轮询（高，产品级）。
-2. **JSC 桥行为差异**：脚本依赖 QuickJS 特有行为的概率低，三站真实验收已兜底（低）。
+2. **39 脚本全量回归**：SwiftSoup 对 Jsoup 扩展选择器（`tr:has()` 等）的等价性需逐脚本验证，阶段 4 验收期集中兜底（中；已抽验 3 站全过）。
 3. **双平台长跑**：Android 活跃开发，iOS feature lag（中，PLAN.md 为真源）。
 4. **磁盘长期紧张**：~~当前 22G~~ 2026-09-21 实测可用 62G，短期无虞；UI 阶段 DerivedData 会增长，定期清（低，可管理）。
 5. **SwiftUI Preview 保真度**：玻璃特效与真机有差异，终验以模拟器/真机为准（低）。
-6. **SDK 版本选择**：2027 年 Apple 全面 Tahoe-only 需换环境（远期）；近期的 Xcode 26.3 vs 26.4+ 取舍见 D9 / §10。
+6. **SDK 版本选择**：✅ D9 已落定 Xcode 26.6；2027 年 Apple 全面 Tahoe-only 需换环境（远期）。
 
 ## 10. 新会话启动指引
 

@@ -53,13 +53,16 @@ Android 用 mikepenz multiplatform-markdown-renderer（M3 主题 + Coil3 + 代�
 `NewsCrawlService` 为 `actor`，事件用 `AsyncStream<CrawlEvent>` 产出（UI 侧 `for await` 驱动进度面板）。每源抓取复用 `JavaScriptHost` 既有 worker 竞速设计（跑完即弃），iOS 侧 JSC 调用天然离开主线程。取消 = `Task.cancel()` 传播到脚本执行间隙检查点。防重入 = actor 内 `isRunning` 状态位。
 
 ### D-5 内置源资产打包
-`app/src/main/assets/sources/*.js`（37 个）在 iOS app target 以 **folder reference 打包**（project.yml sources 指到资源目录），`SourceRegistry` 用 `Bundle` 枚举。core 测试侧用测试 bundle 副本，不依赖 app 资产。
+`app/src/main/assets/sources/*.js`（**39 个**，组织调研复核）在 iOS app target 以 **folder reference 打包**（project.yml sources 指到资源目录），`SourceRegistry` 用 `Bundle` 枚举。core 测试侧用测试 bundle 副本，不依赖 app 资产。**全量 39 脚本离线冒烟**纳入验收（阶段 2 仅抽验 3 站；SwiftSoup 对 Jsoup 扩展选择器如 `tr:has()` 的等价性逐源验证）。
 
 ### D-6 深链载体
 iOS 无 Android Intent extras，对齐语义映射：通知 `userInfo` 键沿用 `destination` / `news_id` 字符串值。`AppRouter.handleDeepLink(userInfo:)` 冷启动（通知启动项）与热到达共用；路由动作在首帧渲染后执行（避免 NavigationStack 未挂载丢失）。
 
 ### D-7 网格列数
 对齐 Android（按宽度 1/2/3 列）：`LazyVGrid` + `GridItem(.adaptive)`，用 `windowScene` 尺寸断点换算；Designed-for-iPhone 的 Mac 窗口可缩放，走 resize 即时重排。
+
+### D-8 Liquid Glass 就地采用（用户要求：iOS 原生风格）
+本阶段所有新 UI 即按 iOS 26 玻璃语言实现：`if #available(iOS 26.0, *)` 下采用 `.glassEffect()` / `tabBarMinimizeBehavior` 等系统玻璃 API，iOS 18 回退为常规材质（`.ultraThinMaterial` 等）。不推迟到阶段 8 统一兜底（阶段 8 仅查漏）。导航壳（tab bar/工具栏/筛选 sheet）优先落地，卡片与详情随功能实现。
 
 ## public 化清单（阶段 3 internal → public，最小集）
 

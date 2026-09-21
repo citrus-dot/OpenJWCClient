@@ -45,5 +45,6 @@
 
 ## 9. 响应式桥接与验收（spec：响应式数据桥接）
 - [ ] 9.1 `ReactiveStore`：三条 ValueObservation 挂载/释放管理（场景「收藏状态跨页同步」）
-- [ ] 9.2 Mac destination 全场景手验：按 spec 12 个 Scenario 逐条过并记录
-- [ ] 9.3 `swift test` 全绿 → `openspec validate` → 汇报归档
+- [ ] 9.2 **39 源全量离线冒烟**：JSC 上逐脚本 manifest 解析 + 列表抓取回归，逐源记录失败/告警对齐 Android（roadmap 阶段 4 验收扩展）
+- [ ] 9.3 Mac destination 全场景手验：按 spec 12 个 Scenario 逐条过并记录
+- [ ] 9.4 `swift test` 全绿 → `openspec validate` → 汇报归档
