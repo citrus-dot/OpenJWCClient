@@ -120,6 +120,9 @@ struct ChatView: View {
             Text("可引用资讯附件，助手会用本地检索工具回答")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            Text("点左上角可查看与管理历史会话")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
         }
         .padding(.vertical, 60)
         .frame(maxWidth: .infinity)

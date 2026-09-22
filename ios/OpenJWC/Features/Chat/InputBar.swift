@@ -41,7 +41,10 @@ struct InputBar: View {
                 } label: {
                     Image(systemName: "paperclip")
                         .font(.system(size: 17))
+                        .frame(width: 36, height: 36)
+                        .background(.background.secondary, in: Circle())
                 }
+                .padding(.bottom, 0)
                 .accessibilityLabel("引用资讯")
 
                 TextField("输入消息…", text: Binding(

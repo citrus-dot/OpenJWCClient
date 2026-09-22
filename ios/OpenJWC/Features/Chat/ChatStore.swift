@@ -176,10 +176,31 @@ final class ChatStore {
         }
     }
 
-    /// 停止当前生成（D-12：发送键原位切换；取消 → agent_cancelled → 失败路径）。
+    /// 停止当前生成（D-12）：取消任务 + **立即落库 FAILED + UI 收敛**（不等事件回传——
+    /// AsyncStream 在任务取消时直接终止迭代，AgentLoop 产出的 runFailed 事件会丢失）。
+    /// 已流出的部分正文保留展示。
     func stopGenerating() {
+        guard sendTask != nil else { return }
         sendTask?.cancel()
         sendTask = nil
+        guard let sessionId = currentSessionId else { return }
+        let partial = streamingText
+        sessionStates[sessionId] = .idle
+        streamingText = ""
+        failedTurn = FailedTurn(
+            text: lastUserText() ?? "",
+            attachments: [],
+            code: AgentFailure.cancelled.rawValue,
+            summary: AgentFailure.cancelled.summary
+        )
+        let dao = chatDao
+        Task {
+            // RUNNING 占位收敛为 FAILED（部分正文保留）；真正完成的事件若已先落库
+            // （竞态），此处 UPDATE 不命中 COMPLETED 行（条件限定 RUNNING），无副作用
+            _ = try? await dao.finishRunningMessages(
+                sessionId: sessionId, text: partial, errorCode: AgentFailure.cancelled.rawValue
+            )
+        }
     }
 
     /// 重试失败轮（复用原文本与附件；不重复插用户消息）。
@@ -207,8 +228,11 @@ final class ChatStore {
     // MARK: - 事件消费
 
     private func consume(_ stream: AsyncStream<ChatStreamEvent>, sessionId: Int64) async {
+        var sawTerminal = false
+        var lastPartial = ""
         for await event in stream {
-            guard !Task.isCancelled else { return }
+            // 取消不能直接 return（会跳过下方兜底收敛），break 走兜底
+            if Task.isCancelled { break }
             switch event {
             case .started:
                 sessionStates[sessionId] = .loading
@@ -217,15 +241,34 @@ final class ChatStore {
             case .generating(let text):
                 sessionStates[sessionId] = .generating
                 streamingText = text
+                lastPartial = text
             case .completed(let finalText):
+                sawTerminal = true
                 sessionStates[sessionId] = .idle
                 streamingText = ""
                 _ = finalText
             case .failed(let code, let summary, let partial):
+                sawTerminal = true
                 markFailed(sessionId, code: code, summary: summary, partial: partial)
             }
         }
-        if sendTask?.isCancelled == true { sendTask = nil }
+        sendTask = nil
+        // 兜底：流终止但未见终态（取消/异常/事件丢失）→ 收敛 UI 并落库 FAILED，
+        // 避免「…" + 转圈永久卡死」（用户实测场景）
+        if !sawTerminal, sessionStates[sessionId] == .generating || sessionStates[sessionId] == .toolCalling || sessionStates[sessionId] == .loading {
+            markFailed(
+                sessionId,
+                code: Task.isCancelled ? AgentFailure.cancelled.rawValue : "agent_interrupted",
+                summary: Task.isCancelled ? AgentFailure.cancelled.summary : "生成被中断，请重试",
+                partial: lastPartial
+            )
+            let dao = chatDao
+            let partial = lastPartial
+            let code = Task.isCancelled ? AgentFailure.cancelled.rawValue : "agent_interrupted"
+            Task {
+                _ = try? await dao.finishRunningMessages(sessionId: sessionId, text: partial, errorCode: code)
+            }
+        }
     }
 
     private func markFailed(_ sessionId: Int64, code: String, summary: String, partial: String) {

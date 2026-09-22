@@ -100,7 +100,15 @@ public final class AgentLoop: Sendable {
         messages += request.history
             .filter { $0.role == "user" || $0.role == "assistant" }
             .map { LlmMessage(role: $0.role, content: $0.content) }
-        messages.append(.user(PromptTemplates.userQuery(request)))
+        var userContent = PromptTemplates.userQuery(request)
+        if !referencedIds.isEmpty {
+            // iOS 增强：引用锚点写进 user prompt（注意力最高处）。
+            // 长 system prompt（39 源元数据）下模型可能忽略末尾引用块，用户实测出现过
+            // 「没有说明是哪一条」；system 的「引用的资讯」块仍保留（正文节选真源）。
+            userContent += "\n\n（本条消息引用了 \(referencedIds.count) 条资讯，其标题与正文节选"
+                + "在系统提示的「引用的资讯」部分，请直接基于它们回答；需要完整正文再用 read_notice。）"
+        }
+        messages.append(.user(userContent))
 
         var rounds = 0
         var toolCalls = 0

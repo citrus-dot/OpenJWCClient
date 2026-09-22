@@ -30,7 +30,7 @@ struct AppShellView: View {
                 .tabItem { Label("我的", systemImage: "person") }
                 .tag(AppTab.me)
         }
-        .tabBarMinimizeBehaviorIfAvailable()
+        // 聊天页有底部输入栏，滚动收纳 tab bar 反而造成跳动（用户反馈）；全局不收纳
         // D-6：深链动作在首帧渲染后执行（NavigationStack 已挂载），冷/热启动一致
         .task(id: router.pendingDeepLink) {
             guard let link = router.pendingDeepLink else { return }

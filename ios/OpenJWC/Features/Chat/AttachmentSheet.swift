@@ -42,6 +42,7 @@ struct AttachmentSheet: View {
                             }
                         }
                         .pickerStyle(.inline)
+                        .labelsHidden() // Section 标题已示「栏目」，Picker 自身 label 会重复一行
                         .onChange(of: selectedLabel) { _, _ in
                             Task { await loadNotices() }
                         }

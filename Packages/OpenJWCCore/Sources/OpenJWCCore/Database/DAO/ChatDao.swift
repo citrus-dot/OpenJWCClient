@@ -154,6 +154,23 @@ public struct ChatDao: Sendable {
         }
     }
 
+    /// 把会话内全部 RUNNING 占位收敛为 FAILED（用户停止/进程中断的兜底；对齐 spec 停止落库语义）。
+    /// 返回被收敛的行数。
+    @discardableResult
+    public func finishRunningMessages(sessionId: Int64, text: String, errorCode: String) async throws -> Int {
+        let assistantRaw = ChatRole.assistant.rawValue
+        let runningRaw = ChatMessageStatus.running.rawValue
+        let failedRaw = ChatMessageStatus.failed.rawValue
+        let sql = "UPDATE chat_messages SET text = ?, status = ?, errorCode = ? WHERE ownerSessionId = ? AND role = ? AND status = ?"
+        return try await db.write { db in
+            try db.execute(
+                sql: sql,
+                arguments: [text, failedRaw, errorCode, sessionId, assistantRaw, runningRaw]
+            )
+            return db.changesCount
+        }
+    }
+
     public func messages(sessionId: Int64) async throws -> [ChatMessageRecord] {
         try await db.read { db in
             try ChatMessageRecord.fetchAll(

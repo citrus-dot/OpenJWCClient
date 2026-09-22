@@ -71,7 +71,7 @@ struct LlmSettingsView: View {
                     profileRow(profile)
                 }
             } footer: {
-                Text("点名称进入编辑；点右侧圆点切换当前使用的配置。对话与日报使用「使用中」的配置。")
+                Text("点圆点切换当前使用的配置；点名称进入编辑。对话与日报使用「使用中」的配置。")
             }
             Section {
                 dailyReportSection
