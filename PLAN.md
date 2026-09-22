@@ -1,5 +1,7 @@
 # 去云端改造计划（纯本地 + BYOK）
 
+> **状态注记**：本文档为 **Android 端**的改造计划（上游）；部分条目（工具数量、Room 版本）与代码有滞后，以代码为准。iOS 移植版的计划与进度见 [`docs/ios-port-roadmap.md`](docs/ios-port-roadmap.md)。
+
 目标：逐步移除自建 Go 服务端，改为「本地数据源脚本 + 自带 API Key 直连 LLM + 本地 Agent」。
 分支：`feat/on-device-ai`。
 

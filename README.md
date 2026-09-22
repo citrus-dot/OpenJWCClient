@@ -1,24 +1,63 @@
 # OpenJWC-Client
 
-本仓库为 OpenJWC 的 Android 客户端，采用 JetBrains Compose 构建。
+东南大学教务资讯的开源客户端。本仓库同时承载两个平台的客户端：
+
+| 平台 | 状态 | 说明 |
+|---|---|---|
+| **Android** | 功能完整，上游活跃开发中 | Jetpack Compose 构建，目录 `app/` |
+| **iOS / iPadOS** | 移植进行中（域层 + 资讯 UI 已完成） | SwiftUI 构建，目录 `ios/` + `Packages/OpenJWCCore/` |
+
+- 上游仓库：[OpenJWC/OpenJWCClient](https://github.com/OpenJWC/OpenJWCClient)（Android 真源）
+- iOS 移植进度与决策记录：[`docs/ios-port-roadmap.md`](docs/ios-port-roadmap.md)（进度真源）
+- 当前移植分支：`feat/on-device-ai`
 
 ## 快速开始
 
-这是一个 Android App 项目。使用 Android Studio 打开本仓库，编译即可。
+### Android
+
+使用 Android Studio 打开本仓库，编译即可。
+
+### iOS（要求 macOS 26 + Xcode 26.6）
+
+```bash
+# 1. 生成 Xcode 工程（工程文件不入库，改动 project.yml 后需重新生成）
+cd ios && xcodegen generate && open OpenJWC.xcodeproj
+
+# 2. 选择 iPhone 模拟器，Cmd+R 运行
+#    模拟器无需签名；真机 / My Mac (Designed for iPhone/iPad)
+#    需在 Xcode → Settings → Accounts 登录免费 Apple ID（签名 7 天有效，可无限续签）
+
+# 3. 域层单元测试（SwiftPM，独立于 App 可跑）
+cd Packages/OpenJWCCore && swift test
+```
+
+技术栈：SwiftUI（最低部署目标 iOS 18.0，iOS 26 Liquid Glass 玻璃效果就地采用）· GRDB（SQLite/WAL）· JavaScriptCore（脚本宿主）· SwiftSoup（HTML 解析）· MarkdownUI（正文渲染）。
 
 ## 特性
 
+### Android（现有全量功能）
+
 1. AI Chat:
    - **深度理解**：教务处通知太长？AI 助你快速提炼要点，化繁为简。
-   - **上下文感知**：支持点击“+”号关联特定资讯作为背景信息，拒绝“幻觉”，让回答更精准。 
-   - **对话管理**：采用侧边抽屉式列表，直观管理历史会话。 
-2. 私有化资讯驱动：自主选择数据源获取教务处动态。配合高亮提醒，确保重要通知绝不遗漏。 
+   - **上下文感知**：支持点击“+”号关联特定资讯作为背景信息，拒绝“幻觉”，让回答更精准。
+   - **对话管理**：采用侧边抽屉式列表，直观管理历史会话。
+2. 私有化资讯驱动：自主选择数据源获取教务处动态。配合高亮提醒，确保重要通知绝不遗漏。
 3. 现代视觉语言：适配 Material Design 3。旨在通过简洁、优雅、流畅的交互，构建快速、直观的用户操作体验。
-4. 全方位个性化定制： 
-   - **视觉**：动态色彩主题、自定义背景图片，让 App 独一无二。 
+4. 全方位个性化定制：
+   - **视觉**：动态色彩主题、自定义背景图片，让 App 独一无二。
    - **性能与网络**：支持自定义服务器、代理配置及资讯高亮时效，完全掌握数据的主动权。
 
+### iOS（移植路线，按阶段推进）
+
+- ✅ **域层**（阶段 1–3）：GRDB 数据库（Room v14 终态 schema 对齐）、JavaScriptCore 脚本宿主（与 Android QuickJS 同一份脚本资产零修改复用）、LLM 客户端（OpenAI 兼容 SSE）、Agent 循环与 11 个工具、Keychain 密钥存储
+- ✅ **资讯 UI**（阶段 4）：五 tab 导航壳、栏目页签 + 自适应网格资讯流、分页预载、下拉刷新抓取（进度/日志/取消面板）、源筛选、收藏、Markdown 详情、图片查看器、通知深链
+- ⏳ 后续：聊天 + 日报 + 设置中心（阶段 5）→ 课表（阶段 6）→ 后台抓取与通知（阶段 7）→ 打磨发布（阶段 8）
+
+完整决策链（D1–D10）与逐阶段验收记录见 [`docs/ios-port-roadmap.md`](docs/ios-port-roadmap.md)。
+
 ## 架构
+
+### Android
 
 ```
              【 表现层 (UI Layer - Jetpack Compose) 】
@@ -47,15 +86,48 @@
   └────────────────────────┘      └─────────────────────────┘
 ```
 
+### iOS
+
+```
+【 App 层 ios/ 】SwiftUI + @Observable
+  AppShellView（五 tab）→ NewsListView / FavoriteListView / NewsDetailView
+  AppEnvironment（组合根）· AppRouter（深链路由）· ReactiveStore（ValueObservation 桥接）
+                                      │
+                                      ▼
+【 域层 Packages/OpenJWCCore 】SwiftPM 包，纯 Swift、单元测试覆盖
+  Database（GRDB 迁移 + DAO）· Scripting（JavaScriptCore 宿主 + 六桥 + 超时竞速）
+  NewsCrawl（播种 + 逐源抓取编排 actor）· LLM（OpenAI 兼容 SSE）· Agent（预算循环 + 11 工具）
+  Settings（UserDefaults 双域 + Keychain）
+                                      │
+           （本地 SQLite / Bundle 内置脚本资产 / 直连 LLM API，无自建服务端）
+```
+
+两平台行为对齐基准：Android 端代码为真源，iOS 逐模块直译（SQL、脚本契约、警告文案逐字对齐）。
+
 ## 数据源脚本
 
-资讯抓取由本地 QuickJS 脚本驱动，内置东南大学教务处（默认订阅）及 30 余个院系/学院官网数据源，
+资讯抓取由本地脚本驱动，内置东南大学教务处（默认订阅）及 30 余个院系/学院官网数据源，
 也可以在「设置 → 资讯数据源」里侧载自己的脚本（`fetchNotices()` 契约，宿主提供
 `http` / `dom` / `util` / `params` / `console` / `report` 桥）。
 
+**同一份脚本资产双平台复用**：Android 跑在 QuickJS、iOS 跑在 JavaScriptCore（均为 ES2020 级引擎，脚本零修改）。
+
 - 脚本格式与 API 参考：[`docs/script-format.md`](docs/script-format.md)
-- 内置脚本示例：[`app/src/main/assets/sources/`](app/src/main/assets/sources/)
-- 改造计划与进度：[`PLAN.md`](PLAN.md)
+- 内置脚本（双平台共用真源）：[`app/src/main/assets/sources/`](app/src/main/assets/sources/)（iOS 以 folder reference 打包同份资产）
+- 改造计划（Android 端）：[`PLAN.md`](PLAN.md)
+
+## 仓库结构
+
+```
+├── app/                        # Android 客户端（上游真源）
+├── Packages/OpenJWCCore/       # iOS 域层 SwiftPM 包（数据库/脚本宿主/LLM/Agent）
+├── ios/                        # iOS App（XcodeGen 工程：编辑 project.yml 后执行 xcodegen generate）
+├── docs/
+│   ├── ios-port-roadmap.md     # iOS 移植决策链与进度真源（新会话接手必读）
+│   └── script-format.md        # 数据源脚本契约
+├── openspec/                   # iOS 功能变更规格（OpenSpec 工作流：proposal/specs/design/tasks）
+└── PLAN.md                     # Android 端去云端改造计划
+```
 
 ## 用户协议
 
