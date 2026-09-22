@@ -103,10 +103,20 @@ public final class AgentLoop: Sendable {
         var userContent = PromptTemplates.userQuery(request)
         if !referencedIds.isEmpty {
             // iOS 增强：引用锚点写进 user prompt（注意力最高处）。
-            // 长 system prompt（39 源元数据）下模型可能忽略末尾引用块，用户实测出现过
-            // 「没有说明是哪一条」；system 的「引用的资讯」块仍保留（正文节选真源）。
-            userContent += "\n\n（本条消息引用了 \(referencedIds.count) 条资讯，其标题与正文节选"
-                + "在系统提示的「引用的资讯」部分，请直接基于它们回答；需要完整正文再用 read_notice。）"
+            // 用户实测（思考型小模型）：模型会忽略 system 末尾引用块/复述标题链接/
+            // 抄错 64 位 id 导致 read_notice 失败——锚点显式区分当前与历史引用并给出行为要求。
+            let currentCount = request.noticeIds.count
+            let historyCount = referencedIds.count - currentCount
+            var note = "（提示：系统提示的「引用的资讯」部分含这些资讯的正文节选。"
+            if currentCount > 0 {
+                note += "本条消息引用了 \(currentCount) 条资讯，请直接基于其正文回答本条问题；"
+            }
+            if historyCount > 0 {
+                note += "另有 \(historyCount) 条是本会话早前引用过的历史资讯，仅在相关时提及；"
+            }
+            note += "请给出正文内容的实质总结，不要只复述标题和链接；如需完整正文可调用 read_notice，"
+            note += "其 id 参数必须从「引用的资讯」块中完整精确复制。）"
+            userContent += "\n\n" + note
         }
         messages.append(.user(userContent))
 

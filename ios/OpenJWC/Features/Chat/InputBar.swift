@@ -98,6 +98,8 @@ struct InputBar: View {
 struct SessionListView: View {
     @Environment(ChatStore.self) private var chat
     @Environment(\.dismiss) private var dismiss
+    /// 左划管理引导：仅首次使用显示（AppStorage 持久化）。
+    @AppStorage("sessionSwipeHintShown") private var swipeHintShown = false
     @State private var renaming: ChatSessionRecord?
     @State private var renameText = ""
     @State private var deleting: ChatSessionRecord?
@@ -122,6 +124,28 @@ struct SessionListView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("完成") { dismiss() }
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                if !swipeHintShown && !chat.sessions.isEmpty {
+                    HStack(spacing: 6) {
+                        Image(systemName: "hand.draw")
+                            .font(.caption)
+                        Text("左划某条会话可重命名或删除")
+                            .font(.caption)
+                    }
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(.bar)
+                    .onTapGesture { swipeHintShown = true }
+                    .onAppear {
+                        // 首次展示 8 秒后自动消失并记住
+                        Task {
+                            try? await Task.sleep(for: .seconds(8))
+                            swipeHintShown = true
+                        }
+                    }
                 }
             }
             .alert("重命名会话", isPresented: Binding(
