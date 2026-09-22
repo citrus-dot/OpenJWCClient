@@ -24,14 +24,23 @@ struct TimetableRootView: View {
                     Button {
                         Task {
                             let dao = TimetableDao(db: environment.db)
-                            guard let table = store.currentTable, let id = table.id else { return }
-                            for (day, name) in [(1, "高等数学"), (3, "大学物理")] {
-                                _ = try? await dao.insertCourse(CourseRecord(
-                                    id: nil, tableId: id, name: name, teacher: "教师", location: "教室",
-                                    dayOfWeek: day, startPeriod: 1, duration: 2,
-                                    color: TimetableJson.deterministicColor(for: name),
-                                    weekRule: JSONIntSet(Set(1...16)), note: ""
-                                ))
+                            guard let table = store.currentTable, let id = table.id else {
+                                NSLog("魔棒：无当前课表，忽略")
+                                return
+                            }
+                            let names = [(1, "软件工程"), (4, "数据结构")]
+                            for (day, name) in names {
+                                do {
+                                    let rowId = try await dao.insertCourse(CourseRecord(
+                                        id: nil, tableId: id, name: name, teacher: "李老师", location: "机房",
+                                        dayOfWeek: day, startPeriod: 3, duration: 2,
+                                        color: TimetableJson.deterministicColor(for: name),
+                                        weekRule: JSONIntSet(Set(1...16)), note: ""
+                                    ))
+                                    NSLog("魔棒插入成功: \(name) rowId=\(rowId)")
+                                } catch {
+                                    NSLog("魔棒插入失败: \(name) \(error)")
+                                }
                             }
                         }
                     } label: {
@@ -359,6 +368,7 @@ struct TimetableGridView: View {
                 onClick: { _ in }
             )
             .offset(x: dragState.dragPosition.x, y: dragState.dragPosition.y)
+            .shadow(color: .black.opacity(0.25), radius: 10, y: 4) // 拖起视觉反馈
             .zIndex(10)
         }
     }

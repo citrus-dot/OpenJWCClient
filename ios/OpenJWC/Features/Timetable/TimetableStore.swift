@@ -143,10 +143,21 @@ final class TimetableStore {
     // MARK: - 数据变更（供视图/菜单调用，经 TimetableService 或直写后观察自动刷新）
 
     func moveCourse(_ course: CourseRecord, toDay day: Int, startPeriod: Int) async {
-        var updated = course
-        updated.dayOfWeek = day
-        updated.startPeriod = startPeriod
-        try? await dao.upsertCourse(updated)
+        guard let courseId = course.id else {
+            NSLog("TimetableStore.moveCourse 拒绝：course.id 为 nil")
+            return
+        }
+        do {
+            let rows = try await dao.updateCoursePosition(
+                courseId: courseId, dayOfWeek: day, startPeriod: startPeriod
+            )
+            NSLog("TimetableStore.moveCourse id=%lld → day=%d period=%d rows=%lld", courseId, day, startPeriod, rows)
+            if rows == 0 {
+                NSLog("TimetableStore.moveCourse 警告：UPDATE 未命中任何行（id 不存在？）")
+            }
+        } catch {
+            NSLog("TimetableStore.moveCourse 失败: \(error)")
+        }
     }
 
     // MARK: - 观察与分钟循环

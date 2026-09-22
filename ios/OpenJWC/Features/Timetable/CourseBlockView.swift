@@ -210,9 +210,11 @@ struct CourseBlockView: View {
     @State private var lastTranslation: CGSize = .zero
 
     /// 长按拖动（等价 detectDragGesturesAfterLongPress）：
-    /// 长按成立 → onDragStart(块尺寸)；拖动 → translation 转增量 onDrag；松手 → onDragEnd。
+    /// 长按成立（0.35s 内位移 ≤50pt 宽容 slop）→ onDragStart(块尺寸)；
+    /// 拖动 → translation 转增量 onDrag；松手 → onDragEnd。
+    /// maximumDistance 50 是灵敏度关键：默认 10 时手指微动即手势失败（表现为"拖不动"）。
     private var dragGesture: some Gesture {
-        LongPressGesture(minimumDuration: 0.35)
+        LongPressGesture(minimumDuration: 0.35, maximumDistance: 50)
             .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .local))
             .onChanged { value in
                 switch value {

@@ -231,6 +231,22 @@ public struct TimetableDao: Sendable {
         }
     }
 
+    /// 移动课程位置（拖拽调课专用 UPDATE：WHERE id 精确命中，杜绝复制行）。
+    /// 返回受影响行数（0 = 目标课程不存在）。
+    @discardableResult
+    public func updateCoursePosition(courseId: Int64, dayOfWeek: Int, startPeriod: Int) async throws -> Int {
+        let day: Int = dayOfWeek
+        let start: Int = startPeriod
+        let id: Int64 = courseId
+        return try await db.write { db in
+            try db.execute(
+                sql: "UPDATE courses SET dayOfWeek = ?, startPeriod = ? WHERE id = ?",
+                arguments: [day, start, id]
+            )
+            return db.changesCount
+        }
+    }
+
     public func deleteCourseById(courseId: Int64) async throws {
         _ = try await db.write { db in
             try db.execute(sql: "DELETE FROM courses WHERE id = ?", arguments: [courseId])
