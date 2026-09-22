@@ -225,9 +225,14 @@ struct MessageBubble: View {
 }
 
 /// 重试行（失败与停止共用；固定在最后一条用户消息之后）。
+/// 配置相关错误（401/403/404/未配置）附「去设置」跳转 AI 模型设置。
 struct RetryRow: View {
     let failed: ChatStore.FailedTurn
     @Environment(ChatStore.self) private var chat
+
+    private var isConfigRelated: Bool {
+        AgentFailure.configRelated.contains(failed.code)
+    }
 
     var body: some View {
         HStack(spacing: 10) {
@@ -236,6 +241,15 @@ struct RetryRow: View {
                 .foregroundStyle(.orange)
                 .lineLimit(2)
             Spacer()
+            if isConfigRelated {
+                NavigationLink {
+                    LlmSettingsView()
+                } label: {
+                    Text("去设置")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
             Button("重试") {
                 Task { await chat.retryLastMessage() }
             }

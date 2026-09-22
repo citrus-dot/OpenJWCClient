@@ -21,6 +21,8 @@ final class CrawlCoordinator {
     private static let maxLogs = 200
 
     private(set) var progress = Progress()
+    /// 进度面板呈现状态（全局 sheet；发起抓取自动弹，资讯页工具栏可随时重开）。
+    var panelPresented = false
 
     private let service: NewsCrawlService
     private var task: Task<Void, Never>?
@@ -29,10 +31,11 @@ final class CrawlCoordinator {
         self.service = service
     }
 
-    /// 场景「防重入」：抓取中重复触发直接忽略。
+    /// 场景「防重入」：抓取中重复触发直接忽略。发起即弹出进度面板（全局可见）。
     func startCrawl(sources: [NoticeSourceRecord], crawlDaysGap: Int) {
         guard task == nil, !progress.running, !sources.isEmpty else { return }
         progress = Progress(running: true, total: sources.count)
+        panelPresented = true
 
         task = Task { [weak self] in
             let stream = await self?.service.crawl(sources: sources, crawlDaysGap: crawlDaysGap)

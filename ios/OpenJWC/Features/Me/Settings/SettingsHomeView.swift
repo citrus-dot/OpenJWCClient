@@ -5,7 +5,7 @@ import OpenJWCCore
 struct SettingsHomeView: View {
     var body: some View {
         List {
-            Section("AI 模型") {
+            Section("对话") {
                 NavigationLink {
                     LlmSettingsView()
                 } label: {

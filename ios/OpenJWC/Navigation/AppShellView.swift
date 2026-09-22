@@ -33,6 +33,14 @@ struct AppShellView: View {
         // tab bar 滚动收纳：仅对话页关闭（聊天有底部输入栏 + 自动滚动，收纳造成跳动），
         // 其它 tab 保持 iOS 26 收纳行为；切 tab 时动态切换参数
         .tabBarMinimizeBehaviorIfAvailable(minimized: router.selectedTab != .chat)
+        // 抓取进度面板：全局呈现（发起抓取自动弹；资讯页工具栏可随时重开）
+        .sheet(isPresented: Binding(
+            get: { environment.crawl.panelPresented },
+            set: { environment.crawl.panelPresented = $0 }
+        )) {
+            CrawlProgressPanel()
+                .presentationDetents([.medium, .large])
+        }
         // D-6：深链动作在首帧渲染后执行（NavigationStack 已挂载），冷/热启动一致
         .task(id: router.pendingDeepLink) {
             guard let link = router.pendingDeepLink else { return }

@@ -171,6 +171,18 @@ struct LlmProfileEditView: View {
                 }
             } catch is CancellationError {
                 await MainActor.run { testing = false }
+            } catch let http as LlmHttpException {
+                // 按状态码归类（对齐 AgentFailure.fromHttpStatus），给出具体原因与修复指引
+                let failure = AgentFailure.fromHttpStatus(http.status)
+                await MainActor.run {
+                    testing = false
+                    testError = "\(failure.summary)（HTTP \(http.status)）"
+                }
+            } catch let config as LlmConfigException {
+                await MainActor.run {
+                    testing = false
+                    testError = config.message
+                }
             } catch {
                 await MainActor.run {
                     testing = false

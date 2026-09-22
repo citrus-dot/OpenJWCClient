@@ -49,9 +49,9 @@ final class MottoStore {
         await refresh()
     }
 
-    /// 手动刷新（在线模式；失败保留缓存 + 提示）。
+    /// 手动刷新（仅在线模式；本地模式为 no-op——修复：关在线开关后「换一句」仍可拉取）。
     func refresh() async {
-        guard !refreshing else { return }
+        guard settings.loadUserSettings().mottoOnline, !refreshing else { return }
         refreshing = true
         lastError = nil
         defer { refreshing = false }

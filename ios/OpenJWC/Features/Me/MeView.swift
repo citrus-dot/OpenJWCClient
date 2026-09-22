@@ -67,7 +67,8 @@ struct HitokotoHeaderView: View {
                     .buttonStyle(.borderless)
             }
 
-            if showRefresh {
+            // 仅在线模式展开刷新按钮；本地模式强制收起
+            if showRefresh && mottoStore.motto.permalink != nil {
                 Button {
                     Task { await mottoStore.refresh() }
                 } label: {
@@ -92,9 +93,11 @@ struct HitokotoHeaderView: View {
         .padding(.vertical, 20)
         .contentShape(Rectangle())
         .onTapGesture {
-            // 仅在线模式点击正文展开刷新（对齐 Android）
+            // 仅在线模式点击正文展开刷新（对齐 Android）；本地模式点击无效果
             if mottoStore.motto.permalink != nil {
                 withAnimation(.easeInOut(duration: 0.2)) { showRefresh.toggle() }
+            } else {
+                showRefresh = false
             }
         }
     }

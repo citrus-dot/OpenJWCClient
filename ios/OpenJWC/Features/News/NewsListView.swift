@@ -43,6 +43,21 @@ struct NewsListView: View {
                 }
                 .accessibilityLabel("收藏")
             }
+            // 抓取中常驻入口：随时打开进度面板（含取消）
+            if crawl.progress.running || crawl.panelPresented {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        crawl.panelPresented = true
+                    } label: {
+                        if crawl.progress.running {
+                            ProgressView()
+                        } else {
+                            Image(systemName: "doc.text.magnifyingglass")
+                        }
+                    }
+                    .accessibilityLabel("抓取进度")
+                }
+            }
             #if DEBUG
             // 深链手验（阶段 4 临时调试入口；阶段 8 随通知注册一并移除）
             ToolbarItem(placement: .topBarTrailing) {
@@ -70,14 +85,6 @@ struct NewsListView: View {
             ) { sourceId in
                 Task { await news.setSourceFilter(sourceId) }
             }
-        }
-        .sheet(isPresented: $showProgress) {
-            CrawlProgressPanel()
-                .presentationDetents([.medium, .large])
-        }
-        .onChange(of: crawl.progress.running) { oldValue, newValue in
-            // 场景「手动触发全量抓取」：抓取开始自动弹进度面板（对齐 Android 对话框）
-            if newValue && !oldValue { showProgress = true }
         }
     }
 
