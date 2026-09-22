@@ -25,6 +25,8 @@ struct OpenJWCApp: App {
                 .environment(environment.news)
                 .environment(environment.crawl)
                 .environment(environment.chat)
+                .environment(environment.dailyReport)
+                .environment(environment.motto)
                 .environment(router)
                 .task { await environment.bootstrap() }
                 .task {

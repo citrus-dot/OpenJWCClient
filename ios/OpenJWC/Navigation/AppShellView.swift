@@ -14,7 +14,7 @@ struct AppShellView: View {
                 .tabItem { Label("对话", systemImage: "bubble.left.and.text.bubble.right") }
                 .tag(AppTab.chat)
 
-            PlaceholderTabView(title: "日报", systemImage: "doc.text", phase: 6)
+            DailyReportRootView()
                 .tabItem { Label("日报", systemImage: "doc.text") }
                 .tag(AppTab.dailyReport)
 
@@ -26,7 +26,7 @@ struct AppShellView: View {
                 .tabItem { Label("课程表", systemImage: "tablecells") }
                 .tag(AppTab.timetable)
 
-            MePlaceholderView()
+            MeView()
                 .tabItem { Label("我的", systemImage: "person") }
                 .tag(AppTab.me)
         }

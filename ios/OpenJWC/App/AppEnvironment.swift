@@ -16,6 +16,8 @@ final class AppEnvironment {
     let news: NewsStore
     let crawl: CrawlCoordinator
     let chat: ChatStore
+    let dailyReport: DailyReportStore
+    let motto: MottoStore
 
     init() throws {
         let provider = try DatabaseProvider.shared()
@@ -38,9 +40,14 @@ final class AppEnvironment {
 
         let runtime = AgentRuntime(settings: settings, db: db)
         self.chat = ChatStore(db: db, runtime: runtime)
+        let reportService = DailyReportService(db: db) {
+            runtime.makeLoop()
+        }
+        self.dailyReport = DailyReportStore(db: db, service: reportService)
+        self.motto = MottoStore(settings: settings)
     }
 
-    /// 启动路径：内置源播种（幂等；删除过的装回且默认不订阅）+ LLM 配置档案迁移。
+    /// 启动路径：内置源播种（幂等；删除过的装回且默认不订阅）。
     func bootstrap() async {
         guard let dir = Bundle.main.resourceURL?.appendingPathComponent("Sources") else { return }
         let registry = SourceRegistry(db: db, settings: settings)
