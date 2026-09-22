@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-09-22
+goal: 在 iOS 端补齐 on-device 路线的交互三件套：聊天 Agent 工具循环 UI、日报手动生成、Me 设置中心
