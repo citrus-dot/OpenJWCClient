@@ -13,21 +13,21 @@
 - [ ] 2.2 `ChatService`：发送编排（占位/事件落库/终态）、重试、历史裁剪 ≤20 条 ≤48KB、错误码语义
 - [ ] 2.3 `DailyReportService`：Mutex 串行、8 条/批、>100 拒绝、48KB 合并阈值、五写点、COMPLETED 防覆盖
 - [ ] 2.4 `HitokotoClient` + `Motto`/`CachedMotto` + 按天缓存（UserDefaults suite `motto_cache`）
-- [ ] 2.5 ChatDao/DailyReportDao 观察辅助静态查询（sessionsVersion/messagesVersion/dailyReportsSync）
+- [ ] 2.5 ChatDao/DailyReportDao 静态同步查询（allSessionsSync/turnsSync/dailyReportsSync，ValueObservation 闭包用）
 - [ ] 2.6 单测：ChatService 落库序/重试/裁剪/中断；DailyReportService 五写点/分批；Hitokoto URL 构造与解析；Motto 按天缓存
 
 ## 3. App 组装与聊天基础设施（design D-3）
 - [ ] 3.1 `AgentRuntime`：每次发送按当前配置组装 LlmClient + AgentLoop
 - [ ] 3.2 `ChatStore`：会话状态机 Map（Idle/Loading/Generating/ToolCalling/Error）、生成中文本、FailedTurn
-- [ ] 3.3 聊天响应式桥接：会话列表 + 当前会话 turns 变更信号重读
+- [ ] 3.3 聊天响应式桥接：单 ValueObservation 闭包组装（sessions 一条 + turns(sessionId) 一条多表组装，切会话换观察）
 
-## 4. 聊天 UI（spec：会话管理/消息流/工具卡/附件/失败重试）【5a 里程碑：验收点——聊天全流程可手验】
-- [ ] 4.1 ChatView 消息流：轮结构（工具时间线 + 气泡）、Markdown 气泡、自动滚动 + 回底按钮、长按菜单
-- [ ] 4.2 SessionListView：新建/重命名对话框/删除确认 + 状态图标
-- [ ] 4.3 输入区：TextEditor + 发送禁用逻辑 + 10000 字截断 + 附件徽标增删
-- [ ] 4.4 ToolCardView：折叠展开/状态图标/耗时/read_notice 深链（预取 notice）
+## 4. 聊天 UI（spec：会话管理/消息流/停止/工具卡/附件/失败重试）【5a 里程碑：验收点——聊天全流程可手验】
+- [ ] 4.1 ChatView 消息流：轮结构（工具活动区 + 气泡）、两阶段渲染（流式 Text + 100ms 合并 → 完成 Markdown）、三态滚动跟随 + 回底按钮、长按菜单
+- [ ] 4.2 会话导航：iPhone 抽屉（新建/重命名/删除确认/状态图标）+ iPad/横屏 NavigationSplitView 分栏
+- [ ] 4.3 输入区：TextEditor + 发送/停止一键切换 + 生成中禁发 + 10000 字截断 + 附件徽标增删
+- [ ] 4.4 工具活动折叠容器：生成中自动展开具体动作、结束收起为「N 个工具 · X 秒」、手动展开逐卡（状态图标/耗时/折叠 summary）、read_notice 深链（预取 notice）
 - [ ] 4.5 AttachmentSheet：数据源 → 栏目 → 资讯三层选择
-- [ ] 4.6 RetryRow + configRelated「去设置」跳转
+- [ ] 4.6 RetryRow（失败与停止共用路径）+ configRelated「去设置」跳转
 
 ## 5. 日报 UI（spec：日报生成与展示）【5b 开始】
 - [ ] 5.1 DailyReportView：日期 chips（最新标记）+ Markdown 正文 + 下拉刷新

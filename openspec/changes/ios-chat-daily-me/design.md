@@ -39,8 +39,26 @@ ios/OpenJWC 新增
 ### D-1 编排放 core，UI 状态放 app
 `ChatService` / `DailyReportService` / `HitokotoClient` 全部进 core：它们是纯域层编排（DAO + AgentLoop + HTTP），阶段 7 的 BGTask/通知要直接复用（Android 的 Worker 也复用 Repository）。UI 状态机（ChatStore 的会话状态 Map、生成中文本、FailedTurn）留在 app 层，对齐 Android ChatViewModel 职责。
 
-### D-2 聊天响应式：变更信号 + 命令式重读
-ChatTurn 组装是多表手写逻辑，不做 ValueObservation 直观察。方案：对 `chat_sessions` 与 `chat_messages` 各挂一条轻量观察（tracking 版本计数：行数 + MAX(updatedAt)），变化时触发 Store 命令式重读（sessions 全量 / 当前会话 turns）。与阶段 4 noticeCount 驱动重读同模式。ChatDao 新增三个静态同步查询 `sessionsVersionSync` / `messagesVersionSync(sessionId:)` / `dailyReportsSync`（完成稿日期倒序）供观察用。
+### D-2 聊天响应式：单 ValueObservation 闭包组装（调研修正）
+GRDB `ValueObservation.tracking` 的闭包内可做任意数量 fetch（含多表 JOIN 组装 turns），GRDB 自动观察闭包读到的所有表区域，任一表写入即重发全量值——这是官方支持的标准模式，替代早前「版本计数信号 + 命令式重读」方案。落地：`sessions` 一条观察（会话列表）、`turns(sessionId)` 一条观察（messages + tool_calls 闭包内组装），回调更新 `@Observable` store；切会话即 cancel 旧观察换新。观察闭包是同步 read 上下文，ChatDao 需新增静态同步方法 `allSessionsSync` / `turnsSync`（复用既有 async 版的内部组装逻辑）+ `dailyReportsSync`（日报完成稿日期倒序，日期 chips 观察）。**流式 token 只更新内存独立属性 `streamingText`，不写库**（每 token 写库会以几十次/秒触发观察全量重查）；完成/失败时终态落库一次，由观察自然刷新。
+
+### D-11 流式渲染两阶段 + 100ms 合并（调研新增，性能关键）
+MarkdownUI 每次内容变化全量重解析 AST，token 级直喂是 O(N²)（上游 issue #426/#445，性能 PR #446 未合并）。策略：
+- **流式期间**：助手气泡用纯 `Text` 追加显示（打字机效果）；SSE 循环内只做 `buffer += delta`，独立 ~100ms 定时 flush 到 `streamingText`（主流默认 50–100ms；避免 20+ 次/秒驱动 SwiftUI diff）
+- **完成后**：终态落库 → 观察刷新 → 气泡切换为 `Markdown(...)` 渲染一次（代码高亮等重活只在此时做）
+- `streamingText` 与 `messages` 分离存放，避免每 token 使整个消息列表视图失效
+- 自动滚动只在流开始触发一次（非每 token）
+- 若完成后长文渲染仍有感知卡顿，后备优化：按空行切块、完成块 memoize 冻结、只重渲活动块（记为可选任务，不默认实施）
+
+### D-12 停止/重试一体（iOS 交互增强，超出 Android 对齐基线）
+主流 AI 聊天 App（ChatGPT/Claude/Discord/Slack）与两份 UX 规范一致视「停止」为标配，且 Apple HIG 生成式 AI 原则要求用户掌控生成过程；Android 端无停止按钮属其自身滞后。采用：流式期间**发送键原位切换为停止键**；停止 → `Task.cancel()` → AgentLoop 的 CancellationError 转 `runFailed(agent_cancelled)` → 落库 FAILED 终态 → RetryRow 原位出现（与失败重试共用一条路径，`configRelated` 跳设置逻辑不变）。
+
+### D-13 工具活动折叠容器（对齐主流 thinking/tools 展示）
+外层可折叠容器包裹每轮工具卡时间线：生成中自动展开 + 具体动作文案（HIG：具体反馈优于「处理中」）；结束后收起为「已使用 N 个工具 · X 秒」摘要行，可手动展开查看逐卡详情（状态图标/耗时/折叠 summary 保留）。`read_notice + targetId` 深链行为不变。
+
+### D-14 会话导航与滚动跟随（iOS 形态）
+- iPhone：消息页左上角入口拉出**会话抽屉**（侧滑 overlay）；iPad/横屏：`NavigationSplitView` 三栏（会话列表 + 对话 + 详情侧栏），玻璃材质交给系统标准组件
+- 滚动三态（ChatGPT/Claude 同款）：跟随中 / 用户上滑即停跟 / 停跟后显示回底悬浮钮，滑回底部或点按恢复跟随
 
 ### D-3 AgentRuntime（app 层组装根）
 对齐 Android AgentLoopFactory：`AgentRuntime(settings:keystore:)` → 读 `LlmProviderConfig` + Keychain Key → 构造 OpenAI 兼容 LlmClient → `AgentLoop`。每次发送按当前配置新组装（用户改配置立即生效，无需重启）。

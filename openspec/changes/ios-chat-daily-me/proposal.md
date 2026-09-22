@@ -11,10 +11,13 @@
   - 新增 `HitokotoClient`（对齐 `HitokotoClient.kt`：v1.hitokoto.cn、11 分类、min/max_length、超时）+ `Motto` 模型与按天缓存（UserDefaults 单 JSON key）
   - 修复 `AgentLoop` 跨帧 tool_calls 索引未排序问题（对齐 Android `toSortedSet`）
 - **app 新增**（SwiftUI）：
-  - 聊天 tab：会话列表（新建/重命名/删除）、消息流（气泡 + 工具时间线）、附件引用资讯（NewsAttachmentSheet 等价）、失败重试行、`read_notice` 工具卡深链资讯详情、`configRelated` 失败跳 LLM 设置
+  - 聊天 tab（对齐主流 AI 聊天交互 + HIG 生成式 AI 原则）：会话抽屉（iPad 分栏）、消息流（轮结构 = 工具活动折叠区 + 气泡）、流式两阶段渲染（纯 Text + 100ms 合并 → 完成 Markdown，规避 MarkdownUI 流式 O(N²) 重解析）、三态滚动跟随、发送/停止一键切换、附件引用资讯（三层选择 sheet）、失败/停止共用重试路径、`read_notice` 工具卡深链资讯详情、`configRelated` 失败跳 LLM 设置
   - 日报 tab：日期 chips（最新标记）、四态（生成中/失败/空态/Markdown 正文）、手动生成 + 下拉刷新
   - Me tab：HitokotoView 头部（在线一言/本地格言 + 懒刷新）、设置中心（LLM 配置含 10 预设与测试连接、日报开关、格言设置、来源编辑器（订阅/抓取/脚本查看编辑/导入）、资讯显示设置（freshDays/crawlDaysGap））、收藏入口、关于页、用户协议页
-- **app 组装**：`AgentRuntime`（LlmKeyStore + SettingsStore → LlmClient 组装，对齐 AgentLoopFactory）；聊天/日报/motto 三处响应式桥接（变更信号观察 + 命令式重读，沿用阶段 4 模式）
+- **app 组装**：`AgentRuntime`（LlmKeyStore + SettingsStore → LlmClient 组装，对齐 AgentLoopFactory）；聊天/日报响应式桥接采用 GRDB 单 ValueObservation 闭包多表组装（官方标准模式，替代版本信号方案）
+
+## 调研依据（2026-09-22，主流实现对照）
+聊天交互向主流看齐的出处：停止/重试一体与三态滚动为 ChatGPT/Claude/Discord/Slack 一致模式 + Apple HIG 生成式 AI「用户掌控」原则；流式两阶段渲染规避 MarkdownUI 全量重解析 O(N²)（上游 issue #426/#445，性能 PR 未合并）；100ms 批量合并为 Vercel smoothStream（50ms）与社区实测（50–100ms）共识；GRDB 单闭包多表观察为官方文档支持模式；工具活动折叠容器对齐 Claude thinking 展示模式。Android 端缺失停止按钮属其自身滞后，已作为「iOS 交互增强」在 spec 中显式标注，功能数据面（落库语义、错误码、重试）与 Android 严格一致。
 
 ## Non-goals
 - 日报/抓取的**后台调度**（BGTaskScheduler）与系统通知 → 阶段 7
