@@ -55,7 +55,7 @@ struct SourcesEditorView: View {
                     startCrawlAll()
                 } label: {
                     Label(
-                        crawl.progress.running ? "抓取中…（点此看进度）" : "抓取全部已订阅",
+                        crawl.progress.running ? "抓取中…" : "抓取全部已订阅",
                         systemImage: "arrow.clockwise"
                     )
                 }

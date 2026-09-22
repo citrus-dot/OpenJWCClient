@@ -1,11 +1,9 @@
 # 阶段 6（课表）交接文档
 
-> **交接对象**：下一会话（实施 agent）。**状态（2026-09-22 深夜更新）**：**6b 已实施完成**（课程详情/编辑器 + 表管理三 sheet + JSON 导入导出 + Agent 接线 + Me 课表设置，`openspec/changes/ios-timetable/tasks.md` 组 5–8 已勾选）；**拖拽已按用户决定挂起移除**（4.7，完整实现保留于 `f1f597c`，恢复要点 TODO 在 `TimetableStore.swift` 顶部）；DEBUG 临时件（魔棒/-startTimetable 注入与启动参数）已移除。验证：离线 `swift test` 98/19 全绿 + `xcodebuild` iPhone 17 构建通过 + 启动冒烟无崩溃。
-> **待办**：① 用户 6b 手验（课程编辑/删除、表管理闭环、导出→导入回环、聊天问课表、Me 四开关即时性、周滑页/今天高亮/指示线/非本周泳道）；② 组 9 归档收尾（外网套件单跑 + roadmap §5 产出清单 + `openspec archive ios-timetable -y` + commit/push）。
-> **实施注意**：拖拽恢复时勿回退两条红线——块手势状态必须单源化进 DragState（勿用视图本地 @State，历史卡死 bug 根因）；moveCourse 走 `updateCoursePosition` 专用 UPDATE（勿改回 upsert，历史复制行 bug 根因）。
-> **前置必读**（按序）：`docs/ios-port-roadmap.md` §8 阶段 6 小节 → 本文档 → `openspec/changes/ios-timetable/` 四件套 + `research-webview-import.md` → Android 真源（需要时对照）。
-> **核验**：`swift test --disable-sandbox --skip AllSourcesSmoke --skip ScriptAcceptance --skip LLMKeyAcceptance` 期望 98 tests / 19 suites；HEAD ≥ 6b 提交，工作区干净。
-> **memory 同步（2026-09-22）**：`/Users/orange/OpenJWC_4ios/.workbuddy/memory/2026-09-22.md` 含阶段 6 立案全程记录；`MEMORY.md`（项目长期）按需更新；用户级 `~/.workbuddy/MEMORY.md` 未变。
+> **状态（2026-09-22 终态）：阶段 6 已完成归档** ✅。6a + 6b 全部实施并通过用户手验（2026-09-22「完全正常」）；拖拽按用户决定挂起移除（4.7，实现保留于 `f1f597c`，恢复要点 TODO 于 `TimetableStore.swift` 顶部）；DEBUG 临时件已移除；`ios-timetable` change 已 archive。**本文档转为历史存档**，下一阶段（7 平台集成）立案请参考 `docs/ios-port-roadmap.md` §8。
+> **手验记录**：网格渲染（示例课/表头/今天高亮/指示线/非本周泳道）、周滑页、课程编辑闭环（预填/编辑/冲突禁存/删除）、表管理闭环（新建/切换/配置/删表切换）、导出→导入回环、聊天问课表、Me 四开关即时性——全部通过。
+> **实施注意（拖拽恢复时）**：勿回退两条红线——块手势状态必须单源化进 DragState（勿用视图本地 @State，历史卡死 bug 根因）；moveCourse 走 `updateCoursePosition` 专用 UPDATE（勿改回 upsert，历史复制行 bug 根因）。
+> **核验**：`swift test --disable-sandbox --skip AllSourcesSmoke --skip ScriptAcceptance --skip LLMKeyAcceptance` 期望 98 tests / 19 suites；离线基线已固化于 roadmap §8 阶段 6 小节。
 
 ## 一、调研范围（Android 真源）
 

@@ -184,7 +184,7 @@ xcodebuild -scheme OpenJWC -destination 'platform=iOS Simulator,name=iPhone 17' 
 
 ## 8. 后续路线图（Tahoe 后开工）
 
-**依赖链**：~~1 → {2, 3}~~（✅ 已完成）→ ~~等 Tahoe~~（✅ 2026-09-21 核验已升 26.6.2）→ {4, 5, 6} → 7 → 8。**阶段 4 当前可开工**，仅剩 D9（Xcode 版本）待用户拍板。
+**依赖链**：~~1 → {2, 3}~~（✅）→ ~~等 Tahoe~~（✅ 26.6.2）→ ~~{4, 5, 6}~~（✅ 全部完成归档）→ 7 → 8。**下一阶段：7 平台集成**（BGTaskScheduler/通知/WidgetKit），开工前建议另立 OpenSpec change。
 
 ### 阶段 4 — 资讯 UI ✅（2026-09-21 完成，见 §5 阶段 4 小节；仅剩用户手验 9.3）
 资讯流 / 源筛选 / 收藏 / 详情（Markdown 渲染）/ 图片查看器 / 通知深链跳转已全部实现并过自动化验收。附件选择器（长按加入附件）属收藏/附件管理细分，随阶段 5 Me 设置中心一并补。
@@ -208,23 +208,31 @@ swift test --skip AllSourcesSmoke --skip ScriptAcceptance --skip LLMKeyAcceptanc
 # 期望：✔ Test run with 71 tests in 16 suites passed
 ```
 
-### 阶段 6 — 课表（实施中：6a+6b 已完成，待 6b 手验 + 组 9 归档）
-周视图自定义 Layout（lane/segment 直译）/ 编辑器 / JSON 导入导出。
-**立案**：`openspec/changes/ios-timetable/` 四件套已评审通过（方案 b = JSON 导入先行、WebView 教务导入延后另立 change，决策与主流方案对照见 design D-6/D-6-补）。
-**6a 已完成**（`7b5777d` + `b604f4d` + `f1f597c`）：
-- core 新增 `Timetable/`：`TimetableLayout`（泳道三步算法/落点解算/冲突判定/周次文案）、`TimetableJson`（**stableJavaHash 双端同色**、weeks 三态解析、13 节扩展、导出回环）、`TimetableService`（表 CRUD/导入事务）；`TimetableDao` public 化 + 观察静态查询 + `updateCoursePosition` 专用 UPDATE
-- app 课表 tab 转正：周翻页（TabView .page 双向同步）、背景 Canvas、节次标签/日期表头（今天高亮）、时间指示线、课程分层（本周全列宽/非本周泳道淡显）
-- 离线 `swift test` **98/19 全绿**（+27 项：布局/JSON/Service）；模拟器验证网格/表头/示例课渲染正确
-**拖拽挂起（2026-09-22 用户决定）**：长按拖拽调课整体移除挂起为待办（完整实现保留在提交 `f1f597c`，恢复要点已写 TODO 注释于 `TimetableStore.swift`）；spec「长按拖拽调课」需求标注暂缓。课程块保留点击详情与按压缩放。
-**6b 已完成**（tasks 组 5–8 + DEBUG 临时件移除）：
-- 课程详情 sheet（非本周徽标/周次文案/备注分组/删除确认）+ 课程编辑器（名称必填/星期/起止节/每周·单·双·自定义周次网格/16 色板名称驱动自动配色+手动锁定/冲突实时提示 1·2·≥3 门禁存）；空槽点击预填天/节新建
-- 表管理：顶栏表名入口 + 管理菜单（切表/学期配置/加课/导出/文件导入/建空表/删表，无快捷方式项）+ 表选择 sheet（当前高亮/新建/导入）+ 学期配置编辑器三模式复用（编辑/新建/导入预览；开学日期归一周一、周数滑块 ≤30、周末开关、节次增删改 + 止>起与不重叠校验禁存、节数低于在用警告不阻断）+ 删当前表自动切剩余首表
-- JSON 导入导出：`fileExporter`（表名净化 `\ / : * ? " < > |` 与空白 → `_`）+ `fileImporter`（application/json → parseExternal → 预览确认 → confirmImport 事务）+ 解析失败具体原因提示
-- Agent 接线：`AgentRuntime.makeLoop()` 注入 `GrdbTimetableSource`（四课表工具自动暴露）；Me 课表设置页（四开关 + 迷你网格预览实时反映）
-- DEBUG 临时件移除：魔棒按钮 / `-startTimetable` 示例注入与启动参数
-**当前验证状态**：离线 `swift test` 98/19 全绿；`xcodebuild` iPhone 17 模拟器构建通过；启动冒烟无崩溃（观察推送 tables/courses 正常）。
-**遗留**：6b 手验清单（编辑/表管理/导入导出回环/聊天问课表/Me 开关即时性）；组 9 归档收尾。
-**交接**：调研指令与实施节奏见 `docs/ios-stage6-handoff.md`。
+### 阶段 6 — 课表 ✅（2026-09-22 完成归档）
+
+**OpenSpec change `ios-timetable`**（归档于 `openspec/changes/archive/`），交付节奏 6a（core 纯函数 + 周视图网格 + 数据流）/6b（编辑器 + 表管理 + 导入导出 + Agent/Me 接线）两批验收，全部手验通过。
+**范围变更（2026-09-22 用户决定）**：**长按拖拽调课挂起移除为待办**——完整实现（TimetableDragState 单源化状态机 + 浮层 spring 动画 + 落点解算落位/回弹链）保留于提交 `f1f597c`，恢复要点 TODO 于 `TimetableStore.swift` 顶部（两条红线：手势状态单源化勿用视图本地 @State；moveCourse 走 `updateCoursePosition` 专用 UPDATE 勿改回 upsert）；spec 需求标注暂缓，恢复时直接生效。课程块保留点击详情 + 按压缩放。
+
+**产出**：
+- core 新增 `Timetable/`：`TimetableLayout`（泳道三步算法/落点解算/冲突判定/周次文案纯函数）、`TimetableJson`（**stableJavaHash 直译 Java hashCode 双端同色**、weeks 三态解析、13 节自动扩展、导出↔导入回环）、`TimetableService`（表 CRUD 建表即切换/删当前表自动切剩余首表/课程增删改/confirmImport 单事务）；`TimetableDao` public 化 + 观察静态查询 + `updateCoursePosition` 专用 UPDATE
+- app 课表 tab 转正：`TabView(.page)` 周翻页双向同步（内部无动画/外部回写）、背景 Canvas（网格线 + 活跃行高亮 + **空槽点击定位新建**）、节次标签/日期表头（今天胶囊高亮 + 午夜刷新）、时间指示线（节内插值/节间贴缘/界外隐藏）、课程分层（本周全列宽顶层/非本周泳道淡显底层）
+- 6b：课程详情 sheet（非本周徽标/周次文案/备注分组/删除确认）+ 课程编辑器（名称必填/星期/起止节/每周·单·双·自定义周次网格/16 色板名称驱动自动配色 + 手动锁定/冲突实时提示 1·2·≥3 门禁存）；表管理（顶栏表名入口 + 管理菜单 + 表选择 sheet + 学期配置编辑器三模式复用：编辑/新建/导入预览，节次止>起与不重叠校验禁存、节数低于在用警告不阻断 + 删表确认）；JSON 导入导出（`fileExporter` 表名净化 / `fileImporter` → parseExternal → 预览确认 → confirmImport 事务 + 失败具体原因提示）
+- Agent 接线：`AgentRuntime.makeLoop()` 注入 `GrdbTimetableSource`（get_timetable/list_timetables/get_courses_on/find_course 四工具自动暴露，聊天与日报共用）；Me 课表设置页（四开关 + 迷你网格预览实时反映）
+- DEBUG 临时件移除（魔棒按钮 / `-startTimetable` 示例注入与启动参数）； WebView 教务导入不在本案（方案 b 决策，未来升级优先方案 d=WebView+LLM，见 design D-6/D-6-补）
+
+**自动化验收（已过）**：
+```bash
+cd /Users/orange/OpenJWC_4ios/Packages/OpenJWCCore
+swift test --disable-sandbox --skip AllSourcesSmoke --skip ScriptAcceptance --skip LLMKeyAcceptance 2>&1 | grep "Test run with"
+# 期望：✔ Test run with 98 tests in 19 suites passed（基线 71 → 阶段 6 增 27）
+swift test --filter AllSourcesSmoke / ScriptAcceptance / LLMKeyAcceptance   # 外网套件单跑通过
+cd /Users/orange/OpenJWC_4ios/ios && xcodegen generate
+xcodebuild -scheme OpenJWC -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO build   # BUILD SUCCEEDED
+```
+
+**手验记录（2026-09-22 用户确认全部正常）**：网格渲染（示例课/表头/今天高亮/时间指示线/非本周泳道淡显）、周滑页双向同步、课程编辑闭环（新建预填/编辑/冲突禁存/删除）、表管理闭环（新建/切换/学期配置编辑/删表自动切换）、导出→导入回环（同名同色）、聊天问课表（工具调用返回课程）、Me 四开关即时生效、启动冒烟无崩溃。
+
+**遗留待办（非阻塞）**：拖拽调课恢复（见 f1f597c + TimetableStore TODO）。
 
 ### 阶段 7 — 平台集成（Tahoe 后）
 BGTaskScheduler 抓取 + 日报 / 通知 + 深链 / 课程提醒 / WidgetKit。**注意语义差异**：iOS 后台调度不保证 Android WorkManager 的准 15 分钟轮询（产品文案要写）。
@@ -250,14 +258,15 @@ Liquid Glass **兜底全覆盖**（策略：各 UI 阶段实现时即就地采�
    sw_vers | grep ProductVersion            # ✅ 26.6.2 Tahoe
    xcodebuild -version                       # ✅ 26.6 (17F113)
    cd /Users/orange/OpenJWC_4ios/Packages/OpenJWCCore && swift test --skip AllSourcesSmoke --skip ScriptAcceptance --skip LLMKeyAcceptance 2>&1 | grep "Test run with"
-   # 期望 71 tests / 16 suites passed（全外网套件单跑：AllSourcesSmoke ~25min；
+   # 期望 98 tests / 19 suites passed（全外网套件单跑：AllSourcesSmoke ~25min；
    # 离线跑全量时外网用例失败属正常）
    ```
 3. **接手场景**：
-   - ✅ 阶段 4/5 已完成归档 → 下一阶段 6 课表：OpenSpec 立案 → 实施（参考 §8 阶段 6 小节）。
-   - iOS 端当前形态：五 tab 中四 tab 已转正（对话/日报/资讯/我的），仅课程表占位。
+   - ✅ 阶段 4/5/6 已完成归档 → 下一阶段 7 平台集成（BGTaskScheduler 抓取/通知深链/课程提醒/WidgetKit）：先 OpenSpec 立案再实施（参考 §8 阶段 7 小节）。
+   - iOS 端当前形态：五 tab 全部转正（对话/日报/资讯/课程表/我的）。
+   - 课表拖拽调课为已挂起待办（实现存于提交 `f1f597c`，恢复要点见 `TimetableStore.swift` 顶部 TODO）。
 4. **流程纪律**：非平凡改动走 OpenSpec（proposal→specs→design→tasks→用户评审→实现→archive）；用户偏好决策征询格式（决策点/候选/利弊表/推荐/追问）。
-5. **待用户确认项**：~~D8 删 runtime~~（已执行）；~~Tahoe 升级~~（✅ 26.6.2）；~~真实 LLM Key~~（联测完成，Key 留存 `~/.openjwc-llm-key`）；~~D9 Xcode 版本~~（✅ 26.6）；~~阶段 4/5~~（✅ 均已归档）。**无待办阻塞，阶段 6 课表可立案。**
+5. **待用户确认项**：~~D8 删 runtime~~（已执行）；~~Tahoe 升级~~（✅ 26.6.2）；~~真实 LLM Key~~（联测完成，Key 留存 `~/.openjwc-llm-key`）；~~D9 Xcode 版本~~（✅ 26.6）；~~阶段 4/5/6~~（✅ 均已归档）。**无待办阻塞，阶段 7 可立案。**
 
 ### Xcode 选型记录（D9，✅ 2026-09-21 落定：方案 A，Xcode 26.6）
 

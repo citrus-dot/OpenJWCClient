@@ -51,14 +51,14 @@
 - [x] 7.1 导出：`fileExporter`（表名净化 `\ / : * ? " < > |` 空格 → `_`，空回退 `timetable`，`.json`；无课提示）
 - [x] 7.2 导入：`fileImporter`（application/json）→ `parseExternal` → 预览确认（复用 TableConfigSheet）→ `confirmImport` 事务
 - [x] 7.3 解析失败提示具体原因（rows 缺失/空/读文件失败）；导入错误 Toast/alert 一次性消费
-- [ ] 7.4 手验：导出→导入回环（颜色/课程一致）、与 Android 端导出文件互通【待用户】
+- [x] 7.4 手验：导出→导入回环（颜色/课程一致）、与 Android 端导出文件互通【用户 2026-09-22 确认】
 
 ## 8. Agent 接线 + Me 课表设置（spec：Agent 课表工具接线/课表显示设置；design D-5）
 - [x] 8.1 `AgentRuntime.makeLoop()` 注入 `GrdbTimetableSource`（一行 + 注释）
 - [x] 8.2 `TimetablePrefsView`：四开关（showTimeline/showDate/showPeriodTime/showNonCurrentWeek，读写 UserSettings）+ 迷你网格预览实时反映
-- [ ] 8.3 手验：聊天问「我周三有什么课」触发 get_courses_on；设置开关即时生效【待用户】
+- [x] 8.3 手验：聊天问「我周三有什么课」触发 get_courses_on；设置开关即时生效【用户 2026-09-22 确认】
 
 ## 9. 归档收尾
-- [ ] 9.1 全量测试绿（`swift test` 离线全跑 + 外网套件单跑）+ `xcodebuild` 模拟器构建通过
-- [ ] 9.2 roadmap 更新（阶段 6 完成小节 + §5 产出清单）+ 6a/6b 手验记录
-- [ ] 9.3 `openspec archive ios-timetable -y` + commit/push（中文提交信息）
+- [x] 9.1 全量测试绿（`swift test` 离线全跑 + 外网套件单跑）+ `xcodebuild` 模拟器构建通过（离线 98/19；AllSourcesSmoke 39 源无致命失败 365s；ScriptAcceptance 3/3；LLMKeyAcceptance 真实 Key SSE+工具调用 85s；BUILD SUCCEEDED）
+- [x] 9.2 roadmap 更新（阶段 6 完成小节 + §5 产出清单）+ 6a/6b 手验记录（2026-09-22 用户确认「完全正常」）
+- [x] 9.3 `openspec archive ios-timetable -y` + commit/push（中文提交信息）
