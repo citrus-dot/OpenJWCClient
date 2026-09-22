@@ -212,6 +212,7 @@ swift test --skip AllSourcesSmoke --skip ScriptAcceptance --skip LLMKeyAcceptanc
 周视图自定义 Layout（lane/segment 直译）/ 编辑器 / 长按拖拽 + 弹性落点 / JSON 导入导出。
 **开工前置**：OpenSpec 立案（proposal→specs→design→tasks→评审）；Android 真源 `ui/timetable/`（36 文件）与 `TimetableDao`（iOS 已有，注意 REPLACE 禁用）。
 **注意**：接入课表后 AgentRuntime 应补 GrdbTimetableSource（课表工具组自动暴露给 Agent，AgentTools 已支持）。
+**交接**：专项调研指令见 `docs/ios-stage6-handoff.md`（调研问题清单/约束/交付物，供独立会话直接接手）。
 
 ### 阶段 7 — 平台集成（Tahoe 后）
 BGTaskScheduler 抓取 + 日报 / 通知 + 深链 / 课程提醒 / WidgetKit。**注意语义差异**：iOS 后台调度不保证 Android WorkManager 的准 15 分钟轮询（产品文案要写）。
