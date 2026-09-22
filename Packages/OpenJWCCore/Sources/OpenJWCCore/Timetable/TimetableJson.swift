@@ -62,6 +62,15 @@ public enum TimetableJson {
         )
     }
 
+    /// 默认空白课表（空态「新建」入口用）。
+    public static func defaultTable(now: Date = Date()) -> TableMetadataRecord {
+        TableMetadataRecord(
+            tableName: "我的课表",
+            semesterConfig: defaultSemesterConfig(now: now),
+            isCurrent: true
+        )
+    }
+
     // MARK: - 周次解析（直译 parseWeekRange）
 
     /// 解析周次文本（如 "1-16周"、"1-10周(单)"、"2,4,6周"、"1-8"）。

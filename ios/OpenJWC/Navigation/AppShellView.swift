@@ -22,7 +22,7 @@ struct AppShellView: View {
                 .tabItem { Label("资讯", systemImage: "newspaper") }
                 .tag(AppTab.news)
 
-            PlaceholderTabView(title: "课程表", systemImage: "tablecells", phase: 7)
+            TimetableRootView()
                 .tabItem { Label("课程表", systemImage: "tablecells") }
                 .tag(AppTab.timetable)
 

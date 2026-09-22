@@ -207,7 +207,7 @@ public struct GrdbTimetableSource: TimetableSource {
     }
 
     /// 某日期是学期第几周；不在学期内返回 nil（对齐 Android weekOf）。
-    static func currentWeek(startDate: String, weeks: Int, today: Date, timeZone: TimeZone) -> Int? {
+    public static func currentWeek(startDate: String, weeks: Int, today: Date, timeZone: TimeZone) -> Int? {
         guard weeks > 0, let start = Self.parseDay(startDate) else { return nil }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
