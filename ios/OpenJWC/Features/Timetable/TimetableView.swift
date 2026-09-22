@@ -28,7 +28,10 @@ struct TimetableRootView: View {
                                 NSLog("魔棒：无当前课表，忽略")
                                 return
                             }
-                            let names = [(1, "软件工程"), (4, "数据结构")]
+                            // 先清空当前表课程（清除历史复制脏数据），再注入
+                            try? await dao.deleteCoursesByTableId(tableId: id)
+                            let names = [(1, "高等数学"), (3, "大学物理"), (5, "体育"),
+                                         (2, "软件工程"), (4, "数据结构")]
                             for (day, name) in names {
                                 do {
                                     let rowId = try await dao.insertCourse(CourseRecord(

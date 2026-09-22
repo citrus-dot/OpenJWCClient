@@ -206,42 +206,37 @@ struct CourseBlockView: View {
         .onAppear { scale = targetScale }
     }
 
-    @State private var dragStarted = false
+    /// 手势会话本地镜像（@GestureState：手势被系统中断时自动复位，杜绝状态泄漏卡死）。
+    @GestureState private var gestureAlive = false
     @State private var lastTranslation: CGSize = .zero
 
-    /// 长按拖动（等价 detectDragGesturesAfterLongPress）：
-    /// 长按成立（0.35s 内位移 ≤50pt 宽容 slop）→ onDragStart(块尺寸)；
-    /// 拖动 → translation 转增量 onDrag；松手 → onDragEnd。
-    /// maximumDistance 50 是灵敏度关键：默认 10 时手指微动即手势失败（表现为"拖不动"）。
     private var dragGesture: some Gesture {
         LongPressGesture(minimumDuration: 0.35, maximumDistance: 50)
             .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .local))
+            .updating($gestureAlive) { _, state, _ in
+                state = true
+            }
             .onChanged { value in
+                guard let dragState, dragState.canStart() else { return }
                 switch value {
                 case .first(true):
-                    if !dragStarted {
-                        dragStarted = true
-                        lastTranslation = .zero
+                    if !dragState.isDragging {
                         onDragStart?(course, width - 4, height - 4)
                     }
                 case .second(true, let drag?):
-                    if !dragStarted {
-                        dragStarted = true
-                        lastTranslation = .zero
+                    if !dragState.isDragging {
                         onDragStart?(course, width - 4, height - 4)
+                    } else {
+                        onDrag?(drag.translation.width - lastTranslation.width,
+                               drag.translation.height - lastTranslation.height)
                     }
-                    onDrag?(drag.translation.width - lastTranslation.width,
-                           drag.translation.height - lastTranslation.height)
                     lastTranslation = drag.translation
                 default:
                     break
                 }
             }
             .onEnded { value in
-                defer {
-                    dragStarted = false
-                    lastTranslation = .zero
-                }
+                defer { lastTranslation = .zero }
                 switch value {
                 case .second(true, _):
                     onDragEnd?()

@@ -14,10 +14,20 @@ final class TimetableDragState {
     private(set) var startHeight: CGFloat = 0
     /// 落位/回弹动画的缩放覆盖（1.06→1.00）；nil = 正常缩放。
     var settleScale: Float?
+    /// 手势会话存活标志：长按成立 → true；end/cancel/系统中断复位。
+    /// 块视图据此防重入（历史 bug：本地 @State 与全局脱节导致块永久卡死）。
+    private(set) var gestureAlive = false
 
     var isDragging: Bool { draggingCourse != nil }
 
+    /// 是否允许开始一次新拖拽（无进行中会话）。
+    func canStart() -> Bool {
+        !gestureAlive
+    }
+
     func start(course: CourseRecord, blockTopLeft: CGPoint, width: CGFloat, height: CGFloat) {
+        guard canStart() else { return }
+        gestureAlive = true
         draggingCourse = course
         originalPosition = blockTopLeft
         dragPosition = blockTopLeft
@@ -26,20 +36,25 @@ final class TimetableDragState {
     }
 
     func drag(dx: CGFloat, dy: CGFloat) {
+        guard gestureAlive else { return }
         dragPosition.x += dx
         dragPosition.y += dy
     }
 
     func moveTo(_ position: CGPoint) {
+        guard gestureAlive else { return }
         dragPosition = position
     }
 
+    /// 全量复位（end/cancel/兜底/系统中断共用；任何泄漏状态在此归零）。
     func reset() {
         draggingCourse = nil
         dragPosition = .zero
         originalPosition = .zero
         startWidth = 0
         startHeight = 0
+        settleScale = nil
+        gestureAlive = false
     }
 }
 
