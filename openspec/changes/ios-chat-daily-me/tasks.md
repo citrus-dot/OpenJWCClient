@@ -1,5 +1,7 @@
 # Tasks: ios-chat-daily-me
 
+> 交付节奏（用户拍板）：**5a = 组 1–4**（core 扩展 + 聊天全量）先验收；**5b = 组 5–8**（日报 + Me）再验收。组 9 归档收尾。
+
 ## 1. core public 化第二批（design D-4）
 - [ ] 1.1 `AgentTypes`/`AgentLoop`/`AgentTools`（run/answer/displayName/summary 面）public 化
 - [ ] 1.2 `LlmClient`（协议 + 流事件）+ `LlmKeyStore` public 化
@@ -19,7 +21,7 @@
 - [ ] 3.2 `ChatStore`：会话状态机 Map（Idle/Loading/Generating/ToolCalling/Error）、生成中文本、FailedTurn
 - [ ] 3.3 聊天响应式桥接：会话列表 + 当前会话 turns 变更信号重读
 
-## 4. 聊天 UI（spec：会话管理/消息流/工具卡/附件/失败重试）
+## 4. 聊天 UI（spec：会话管理/消息流/工具卡/附件/失败重试）【5a 里程碑：验收点——聊天全流程可手验】
 - [ ] 4.1 ChatView 消息流：轮结构（工具时间线 + 气泡）、Markdown 气泡、自动滚动 + 回底按钮、长按菜单
 - [ ] 4.2 SessionListView：新建/重命名对话框/删除确认 + 状态图标
 - [ ] 4.3 输入区：TextEditor + 发送禁用逻辑 + 10000 字截断 + 附件徽标增删
@@ -27,7 +29,7 @@
 - [ ] 4.5 AttachmentSheet：数据源 → 栏目 → 资讯三层选择
 - [ ] 4.6 RetryRow + configRelated「去设置」跳转
 
-## 5. 日报 UI（spec：日报生成与展示）
+## 5. 日报 UI（spec：日报生成与展示）【5b 开始】
 - [ ] 5.1 DailyReportView：日期 chips（最新标记）+ Markdown 正文 + 下拉刷新
 - [ ] 5.2 四态：生成中/失败（原因+重试）/空态（生成日报入口）/内容
 - [ ] 5.3 DailyReportStore：选中日状态机 + 生成并发保护 + 懒加载
