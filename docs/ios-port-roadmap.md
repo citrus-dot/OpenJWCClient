@@ -2,7 +2,7 @@
 
 > **文档用途**：`/Users/orange/OpenJWC_4ios` 工作区 iOS 移植项目的完整交接与路线规划，供任何新会话（agent 切换）直接接手。本文档自包含：决策链、用户原话存档、已完成工作及**逐项查验命令**、后续路线、风险清单。进度真源 = 本文档 + 项目记忆（ZCode memory / ai-memory）。
 >
-> **最近更新**：2026-09-22（阶段 5 聊天+日报+Me 完成并归档：core 编排服务三件套 + 聊天全量 UI（停止/两阶段渲染/工具折叠）+ 日报 + 设置中心；71/16 测试绿。见 §5 阶段 5 小节）　**前版**：2026-09-21（阶段 4 资讯 UI 完成）
+> **最近更新**：2026-09-22（阶段 6 课表实施中：6a core 三件套 + 周视图网格 + 拖拽全链路完成，98/19 测试绿，模拟器渲染验证通过；待用户拖拽手验 → 6b 编辑器/表管理/导入导出/Agent 接线。见 §5 阶段 6 小节）　**前版**：2026-09-22（阶段 5 聊天+日报+Me 完成归档）
 
 ---
 
@@ -208,11 +208,17 @@ swift test --skip AllSourcesSmoke --skip ScriptAcceptance --skip LLMKeyAcceptanc
 # 期望：✔ Test run with 71 tests in 16 suites passed
 ```
 
-### 阶段 6 — 课表（下一阶段）
+### 阶段 6 — 课表（实施中：6a 完成待手验，6b 未开始）
 周视图自定义 Layout（lane/segment 直译）/ 编辑器 / 长按拖拽 + 弹性落点 / JSON 导入导出。
-**开工前置**：OpenSpec 立案（proposal→specs→design→tasks→评审）；Android 真源 `ui/timetable/`（36 文件）与 `TimetableDao`（iOS 已有，注意 REPLACE 禁用）。
-**注意**：接入课表后 AgentRuntime 应补 GrdbTimetableSource（课表工具组自动暴露给 Agent，AgentTools 已支持）。
-**交接**：专项调研指令见 `docs/ios-stage6-handoff.md`（调研问题清单/约束/交付物，供独立会话直接接手）。
+**立案**：`openspec/changes/ios-timetable/` 四件套已评审通过（方案 b = JSON 导入先行、WebView 教务导入延后另立 change，决策与主流方案对照见 design D-6/D-6-补）。
+**6a 已完成**（`7b5777d` + `b604f4d` + `f1f597c`）：
+- core 新增 `Timetable/`：`TimetableLayout`（泳道三步算法/落点解算/冲突判定/周次文案）、`TimetableJson`（**stableJavaHash 双端同色**、weeks 三态解析、13 节扩展、导出回环）、`TimetableService`（表 CRUD/导入事务）；`TimetableDao` public 化 + 观察静态查询 + `updateCoursePosition` 专用 UPDATE
+- app 课表 tab 转正：周翻页（TabView .page 双向同步）、背景 Canvas、节次标签/日期表头（今天高亮）、时间指示线、课程分层（本周全列宽/非本周泳道淡显/拖动露层）、**长按拖拽全链路**（浮层 spring 长到整列/220ms 落位回弹/数据反映撤浮层 + 1s 兜底）
+- 拖拽状态机重构（手验反馈驱动）：状态单源化进 `TimetableDragState`（gestureAlive/canStart/reset 全量归零），块手势用 **@GestureState 自动复位**消除中断泄漏；moveCourse 改专用 UPDATE 杜绝复制行
+- 离线 `swift test` **98/19 全绿**（+27 项：布局/JSON/Service）；模拟器验证网格/表头/示例课渲染正确
+**6a 遗留**：待用户拖拽手验（落位/回弹/翻页/高亮）；「单列字符」现象待 6b 定位（疑周次失配走泳道半列宽）
+**6b 未开始**（tasks 组 5–8）：课程详情/编辑器、表管理（菜单/选择/配置）、JSON 文件导入导出、AgentRuntime 注入 GrdbTimetableSource、Me 课表设置页；DEBUG 临时件（魔棒/示例数据/-startTimetable 参数）随 6b 移除
+**交接**：调研指令与实施节奏见 `docs/ios-stage6-handoff.md`。
 
 ### 阶段 7 — 平台集成（Tahoe 后）
 BGTaskScheduler 抓取 + 日报 / 通知 + 深链 / 课程提醒 / WidgetKit。**注意语义差异**：iOS 后台调度不保证 Android WorkManager 的准 15 分钟轮询（产品文案要写）。

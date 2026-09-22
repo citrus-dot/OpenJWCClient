@@ -1,10 +1,9 @@
-# 阶段 6（课表）调研交接文档
+# 阶段 6（课表）交接文档
 
-> **交接对象**：下一会话（实施 agent）。**任务**：阶段 6 课表 OpenSpec 立案已完成并经用户评审通过（方案 b），下一会话从实施阶段起接手（6a/6b 节奏见下文第六节），**实施前再次跑 §5 快捷命令核验环境基线**。
-> **前置必读**（按序）：`docs/ios-port-roadmap.md`（进度真源，§8 阶段 6 小节）→ 本文档 → `openspec/changes/ios-timetable/` 四件套（`proposal.md` / `specs/timetable/spec.md` / `design.md` / `tasks.md`）+ 调研附录 `research-webview-import.md`（仅记录有效派别①③④，未来升级 WebView 时直接读此文档）→ Android 真源目录（需要时对照）。
-> **当前进度**（2026-09-22 17:40 更新）：阶段 0–5 已完成归档（资讯/对话/日报/我的四 tab 转正，仅课程表占位）；离线 `swift test --disable-sandbox --skip AllSourcesSmoke --skip ScriptAcceptance --skip LLMKeyAcceptance` 71/16 全绿；HEAD `85a6800`（≥ `dd15868`，工作区干净）。**阶段 6 OpenSpec 立案完成 + 评审通过 + 方案 b（JSON 文件导入先行、WebView 延后另立 change）已定，未实施**。
->
-> **ai-memory 交接快照**：本会话结束前已用 ai-memory `memory_handoff_begin` 写入跨会话 handoff，SessionStart 钩子会在下一会话自动注入；如未见自动注入块，调用 `memory_handoff_list` 查询并 `memory_handoff_accept` 领取。
+> **交接对象**：下一会话（实施 agent）。**状态（2026-09-22 晚更新）**：立案完成 + 用户评审通过（方案 b）；**6a 已实施完成**（core 三件套 + 周视图网格 + 数据流 + 拖拽全链路，提交 7b5777d/b604f4d/f1f597c，离线 swift test 98/19 全绿，模拟器网格渲染验证通过）；**待办**：① 用户 6a 拖拽手验（落位/回弹/翻页/今天高亮）；② 6b = tasks 组 5–8（课程详情/编辑器、表管理、JSON 导入导出、AgentRuntime 注入 GrdbTimetableSource、Me 课表设置）；③ 6b 收尾时移除 DEBUG 临时件（魔棒按钮/示例数据注入/`-startTimetable` launch 参数，均在 `#if DEBUG` 内）。
+> **实施注意**：拖拽状态已单源化进 `TimetableDragState`（gestureAlive/canStart/reset），块手势用 @GestureState 兜底——勿再往块视图本地加会话状态（历史卡死 bug 根因）；moveCourse 走 `updateCoursePosition` 专用 UPDATE（勿改回 upsert，历史复制行 bug 根因）。
+> **前置必读**（按序）：`docs/ios-port-roadmap.md` §8 阶段 6 小节 → 本文档 → `openspec/changes/ios-timetable/` 四件套 + `research-webview-import.md` → Android 真源（需要时对照）。
+> **核验**：`swift test --disable-sandbox --skip AllSourcesSmoke --skip ScriptAcceptance --skip LLMKeyAcceptance` 期望 98 tests / 19 suites；HEAD ≥ `f1f597c`，工作区干净。
 > **memory 同步（2026-09-22）**：`/Users/orange/OpenJWC_4ios/.workbuddy/memory/2026-09-22.md` 含阶段 6 立案全程记录；`MEMORY.md`（项目长期）按需更新；用户级 `~/.workbuddy/MEMORY.md` 未变。
 
 ## 一、调研范围（Android 真源）
