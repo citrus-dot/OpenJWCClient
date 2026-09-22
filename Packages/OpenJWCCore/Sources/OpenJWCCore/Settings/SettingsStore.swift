@@ -2,7 +2,7 @@ import Foundation
 
 /// LLM provider 配置（不含 API Key）。结构对齐 Android `LlmProviderConfig`，
 /// JSON 字段名与 kotlinx 序列化一致（max_tokens 蛇形）。
-public struct LlmProviderConfig: Codable, Equatable, Sendable {
+public struct LlmProviderConfig: Codable, Equatable, Hashable, Sendable {
     public var providerId: String
     public var `protocol`: String
     public var baseUrl: String
@@ -72,6 +72,41 @@ public struct UserSettings: Codable, Equatable, Sendable {
     public init() {}
 }
 
+/// 供应商无关的对话消息（配置档案共用 LlmProviderConfig）。
+
+/// LLM 配置档案（多套存档管理）：一份 = 一个供应商端点 + 模型 + 显示名。
+/// API Key 不在其中——按 profile.id 隔离存于 LlmKeyStore。
+public struct LlmProfile: Codable, Equatable, Sendable, Identifiable, Hashable {
+    public var id: String
+    public var name: String
+    public var config: LlmProviderConfig
+    public var isActive: Bool
+
+    public init(id: String = UUID().uuidString, name: String, config: LlmProviderConfig, isActive: Bool = false) {
+        self.id = id
+        self.name = name
+        self.config = config
+        self.isActive = isActive
+    }
+
+    /// 激活态单选约束：至多一个 isActive；无激活时首个为激活。
+    public static func normalize(_ profiles: [LlmProfile]) -> [LlmProfile] {
+        guard !profiles.isEmpty else { return profiles }
+        var result = profiles
+        let activeCount = result.filter(\.isActive).count
+        if activeCount == 0 { result[0].isActive = true }
+        if activeCount > 1 {
+            var seen = false
+            for i in result.indices {
+                if result[i].isActive {
+                    if seen { result[i].isActive = false } else { seen = true }
+                }
+            }
+        }
+        return result
+    }
+}
+
 /// 用户设置存储：UserDefaults 双命名域对位 Android 两个 DataStore（llm_prefs / user_settings）。
 /// 本阶段提供快照读写；值观察（AsyncStream 桥接 KVO）留到 UI 阶段实现。
 /// UserDefaults 本身线程安全，跨 actor 持有安全（@unchecked）。
@@ -89,6 +124,41 @@ public struct SettingsStore: @unchecked Sendable {
     public init(llmDefaults: UserDefaults, settingsDefaults: UserDefaults) {
         self.llmDefaults = llmDefaults
         self.settingsDefaults = settingsDefaults
+    }
+
+    // MARK: - LLM 配置档案（多套存档；独立 key，旧 provider_config 保留兼容）
+
+    private static let profilesKey = "provider_profiles"
+
+    /// 全部配置档案（按激活优先、名称次序）。
+    public func loadProfiles() -> [LlmProfile] {
+        guard let raw = llmDefaults.string(forKey: Self.profilesKey),
+              let data = raw.data(using: .utf8),
+              let list = try? JSONDecoder().decode([LlmProfile].self, from: data) else {
+            return []
+        }
+        return list
+    }
+
+    public func saveProfiles(_ profiles: [LlmProfile]) {
+        // 激活态单选约束
+        let normalized = LlmProfile.normalize(profiles)
+        guard let data = try? JSONEncoder().encode(normalized),
+              let raw = String(data: data, encoding: .utf8) else { return }
+        llmDefaults.set(raw, forKey: Self.profilesKey)
+    }
+
+    /// 当前激活档案；无档案时从旧单配置迁移（provider_config → 首个激活档案，幂等）。
+    public func loadActiveProfile() -> LlmProfile? {
+        let existing = loadProfiles()
+        if let active = existing.first(where: \.isActive) { return active }
+        if let first = existing.first { return first }
+        // 迁移：旧单配置 → 首个档案（不写回，下次 saveProfiles 落盘）
+        return LlmProfile(name: defaultProfileName(for: loadLlmConfig()), config: loadLlmConfig(), isActive: true)
+    }
+
+    private func defaultProfileName(for config: LlmProviderConfig) -> String {
+        LlmPresets.byId(config.providerId).name
     }
 
     // MARK: - LLM 配置（单键 JSON，整体存取；未来加字段零迁移）

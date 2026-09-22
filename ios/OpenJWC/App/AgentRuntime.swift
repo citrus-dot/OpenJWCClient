@@ -2,9 +2,9 @@ import Foundation
 import GRDB
 import OpenJWCCore
 
-/// Agent 组装根（对齐 Android AgentLoopFactory）：每次发送按当前配置新组装，
-/// 用户改 LLM 配置立即生效，无需重启。
-/// Keychain API 本身线程安全，@unchecked Sendable 成立。
+/// Agent 组装根（对齐 Android AgentLoopFactory）：每次发送按当前**激活档案**新组装，
+/// 用户改配置立即生效，无需重启。
+/// Keychain API 本身线程安全（含 UserDefaults 回退），@unchecked Sendable 成立。
 struct AgentRuntime: @unchecked Sendable {
     private let settings: SettingsStore
     private let keyStore = LlmKeyStore()
@@ -15,16 +15,30 @@ struct AgentRuntime: @unchecked Sendable {
         self.db = db
     }
 
-    /// 按当前配置组装 AgentLoop；课表/日报工具源待阶段 6 接入后补。
+    /// 按激活档案组装 AgentLoop；无档案（未配置）→ AgentLoop 收到缺 Key 客户端，
+    /// 首个事件即 runFailed(agent_configuration_error)（UI 提示去设置）。
     func makeLoop() -> AgentLoop {
-        let config = settings.loadLlmConfig()
-        let apiKey = ((try? keyStore.load(for: config.providerId)) ?? "") ?? ""
-        let client = OpenAiCompatibleClient(config: config, apiKey: apiKey)
+        let profile = settings.loadActiveProfile()
+        let apiKey: String
+        if let profile {
+            apiKey = (try? keyStore.load(for: Self.keyAccount(profile.id))) ?? nil ?? ""
+        } else {
+            apiKey = ""
+        }
+        let client = OpenAiCompatibleClient(
+            config: profile?.config ?? LlmProviderConfig(),
+            apiKey: apiKey
+        )
         let corpus = GrdbNoticeCorpus(db: db)
         return AgentLoop(
             client: client,
             tools: AgentTools(repository: corpus),
             repository: corpus
         )
+    }
+
+    /// Key 隔离键：按档案 id（多档案可同供应商不同 Key）。
+    static func keyAccount(_ profileId: String) -> String {
+        "profile-\(profileId)"
     }
 }
