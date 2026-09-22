@@ -10,7 +10,7 @@ struct AppShellView: View {
     var body: some View {
         @Bindable var router = router
         TabView(selection: $router.selectedTab) {
-            PlaceholderTabView(title: "对话", systemImage: "bubble.left.and.text.bubble.right", phase: 5)
+            ChatRootView()
                 .tabItem { Label("对话", systemImage: "bubble.left.and.text.bubble.right") }
                 .tag(AppTab.chat)
 
@@ -26,7 +26,7 @@ struct AppShellView: View {
                 .tabItem { Label("课程表", systemImage: "tablecells") }
                 .tag(AppTab.timetable)
 
-            PlaceholderTabView(title: "我的", systemImage: "person", phase: 8)
+            MePlaceholderView()
                 .tabItem { Label("我的", systemImage: "person") }
                 .tag(AppTab.me)
         }

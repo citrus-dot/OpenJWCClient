@@ -15,6 +15,7 @@ final class AppEnvironment {
     let reactive: ReactiveStore
     let news: NewsStore
     let crawl: CrawlCoordinator
+    let chat: ChatStore
 
     init() throws {
         let provider = try DatabaseProvider.shared()
@@ -34,6 +35,9 @@ final class AppEnvironment {
             return try String(contentsOf: dir.appendingPathComponent(file), encoding: .utf8)
         }
         self.crawl = CrawlCoordinator(service: crawlService)
+
+        let runtime = AgentRuntime(settings: settings, db: db)
+        self.chat = ChatStore(db: db, runtime: runtime)
     }
 
     /// 启动路径：内置源播种（幂等；删除过的装回且默认不订阅）。
