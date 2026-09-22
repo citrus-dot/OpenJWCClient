@@ -1,10 +1,52 @@
 import SwiftUI
 import OpenJWCCore
+import UniformTypeIdentifiers
 
-/// 课表 tab 根视图（对齐 Android TimetableView）：顶栏（表名/周胶囊）+ 周翻页 + 网格 + 空态。
+/// 课程编辑器呈现上下文（新建可带空槽预填天/节）。
+enum EditCourseContext: Identifiable {
+    case new(day: Int, startPeriod: Int)
+    case edit(CourseRecord)
+
+    var id: String {
+        switch self {
+        case .new(let day, let period): return "new-\(day)-\(period)"
+        case .edit(let course): return "edit-\(course.id ?? 0)"
+        }
+    }
+}
+
+/// 课表 tab 的 sheet 队列（同一时刻最多一张）。
+enum TimetableSheet: Identifiable {
+    case tableSelect
+    case tableConfig(TableMetadataRecord)
+    case newTable
+    case importPreview(TimetableJson.ParseResult)
+    case editCourse(EditCourseContext)
+    case courseDetail(CourseRecord, currentWeek: Int)
+
+    var id: String {
+        switch self {
+        case .tableSelect: return "tableSelect"
+        case .tableConfig: return "tableConfig"
+        case .newTable: return "newTable"
+        case .importPreview: return "importPreview"
+        case .editCourse(let ctx): return "edit-\(ctx.id)"
+        case .courseDetail(let course, _): return "detail-\(course.id ?? 0)"
+        }
+    }
+}
+
+/// 课表 tab 根视图（对齐 Android TimetableView）：顶栏（表名入口/管理菜单）+ 周翻页 + 网格 + 空态。
 struct TimetableRootView: View {
     @Environment(TimetableStore.self) private var store
     @Environment(AppEnvironment.self) private var environment
+
+    @State private var sheet: TimetableSheet?
+    @State private var showImporter = false
+    @State private var showExporter = false
+    @State private var exportDocument: JsonTextDocument?
+    @State private var confirmDeleteTable = false
+    @State private var alertText: String?
 
     var body: some View {
         NavigationStack {
@@ -18,42 +60,125 @@ struct TimetableRootView: View {
             .navigationTitle("课程表")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                #if DEBUG
-                // 6a 拖拽手验临时入口：注入示例课程（6b 编辑器到位后移除）
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task {
-                            let dao = TimetableDao(db: environment.db)
-                            guard let table = store.currentTable, let id = table.id else {
-                                NSLog("魔棒：无当前课表，忽略")
-                                return
-                            }
-                            // 先清空当前表课程（清除历史复制脏数据），再注入
-                            try? await dao.deleteCoursesByTableId(tableId: id)
-                            let names = [(1, "高等数学"), (3, "大学物理"), (5, "体育"),
-                                         (2, "软件工程"), (4, "数据结构")]
-                            for (day, name) in names {
-                                do {
-                                    let rowId = try await dao.insertCourse(CourseRecord(
-                                        id: nil, tableId: id, name: name, teacher: "李老师", location: "机房",
-                                        dayOfWeek: day, startPeriod: 3, duration: 2,
-                                        color: TimetableJson.deterministicColor(for: name),
-                                        weekRule: JSONIntSet(Set(1...16)), note: ""
-                                    ))
-                                    NSLog("魔棒插入成功: \(name) rowId=\(rowId)")
-                                } catch {
-                                    NSLog("魔棒插入失败: \(name) \(error)")
-                                }
+                if let table = store.currentTable {
+                    // 顶栏课表名 → 表选择入口（spec：周切换与当前周）
+                    ToolbarItem(placement: .principal) {
+                        Button {
+                            sheet = .tableSelect
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text(table.tableName)
+                                    .font(.headline)
+                                    .lineLimit(1)
+                                Image(systemName: "chevron.down")
+                                    .font(.caption2.weight(.semibold))
                             }
                         }
-                    } label: {
-                        Image(systemName: "wand.and.stars")
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        TimetableMenu(
+                            onTableSelect: { sheet = .tableSelect },
+                            onTableConfig: {
+                                if let table = store.currentTable { sheet = .tableConfig(table) }
+                            },
+                            onAddCourse: {
+                                sheet = .editCourse(.new(day: 1, startPeriod: 1))
+                            },
+                            onExport: { startExport() },
+                            onImport: { showImporter = true },
+                            onCreateTable: { sheet = .newTable },
+                            onDeleteTable: { confirmDeleteTable = true }
+                        )
                     }
                 }
-                #endif
             }
         }
-        .onAppear { store.recomputeCurrentWeek() }
+        .onAppear {
+            store.reloadPrefs()
+        }
+        .sheet(item: $sheet) { item in
+            switch item {
+            case .tableSelect:
+                TableSelectSheet(
+                    tables: store.snapshot.tables,
+                    currentId: store.currentTable?.id,
+                    onSelect: { table in
+                        Task {
+                            try? await TimetableService(db: environment.db).switchTable(tableId: table.id ?? 0)
+                        }
+                        sheet = nil
+                    },
+                    onCreate: { sheet = .newTable },
+                    onParsed: { sheet = .importPreview($0) }
+                )
+            case .tableConfig(let table):
+                TableConfigSheet(
+                    mode: .edit(table),
+                    coursesInUse: store.courses
+                )
+            case .newTable:
+                TableConfigSheet(mode: .create, coursesInUse: [])
+            case .importPreview(let result):
+                TableConfigSheet(
+                    mode: .importPreview(result),
+                    coursesInUse: result.courses
+                )
+            case .editCourse(let ctx):
+                if let table = store.currentTable, let config = store.config {
+                    EditCourseSheet(
+                        table: table,
+                        config: config,
+                        courses: store.courses,
+                        context: ctx
+                    )
+                }
+            case .courseDetail(let course, let week):
+                CourseDetailSheet(
+                    course: course,
+                    currentWeek: week,
+                    totalWeeks: store.config?.weeks ?? 16,
+                    onEdit: {
+                        sheet = .editCourse(.edit(course))
+                    },
+                    onDelete: {
+                        if let id = course.id {
+                            Task { try? await TimetableService(db: environment.db).removeCourse(courseId: id) }
+                        }
+                        sheet = nil
+                    }
+                )
+            }
+        }
+        .confirmationDialog(
+            "删除当前课表", isPresented: $confirmDeleteTable, titleVisibility: .visible
+        ) {
+            Button("删除「\(store.currentTable?.tableName ?? "")」", role: .destructive) {
+                deleteCurrentTable()
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("该课表及其全部课程将被删除；若还有其它课表会自动切换到剩余第一张。")
+        }
+        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json]) { result in
+            handleImportResult(result)
+        }
+        .fileExporter(
+            isPresented: $showExporter,
+            document: exportDocument,
+            contentType: .json,
+            defaultFilename: ExportNaming.sanitizedFileName(store.currentTable?.tableName ?? "")
+        ) { _ in }
+        .alert(
+            "提示",
+            isPresented: Binding(
+                get: { alertText != nil },
+                set: { if !$0 { alertText = nil } }
+            )
+        ) {
+            Button("好", role: .cancel) {}
+        } message: {
+            Text(alertText ?? "")
+        }
     }
 
     // MARK: - 周翻页（D-3 双向同步）
@@ -81,16 +206,50 @@ struct TimetableRootView: View {
             prefs: store.displayPrefs,
             activePeriodIndex: week == store.currentWeek ? store.activePeriodIndex : -1,
             nowMinuteOfDay: store.nowMinuteOfDay,
-            dragState: week == store.currentWeek ? store.dragState : nil,
-            onCourseClick: { _ in /* 6b: 课程详情 sheet */ },
-            onEmptySlotClick: { _, _ in /* 6b: 新建编辑器预填 */ },
-            onCourseMove: { course, day, period in
-                Task { await store.moveCourse(course, toDay: day, startPeriod: period) }
+            onCourseClick: { course in
+                sheet = .courseDetail(course, currentWeek: week)
+            },
+            onEmptySlotClick: { day, period in
+                sheet = .editCourse(.new(day: day, startPeriod: period))
             }
         )
     }
 
-    // MARK: - 空态引导（场景「空态引导」）
+    // MARK: - 导出 / 导入 / 删表
+
+    private func startExport() {
+        guard let table = store.currentTable else { return }
+        guard let json = TimetableJson.buildExport(table: table, courses: store.courses) else {
+            alertText = "当前课表没有课程，无法导出。"
+            return
+        }
+        exportDocument = JsonTextDocument(text: json)
+        showExporter = true
+    }
+
+    private func handleImportResult(_ result: Result<URL, Error>) {
+        switch result {
+        case .failure(let error):
+            alertText = "读取文件失败：\(error.localizedDescription)"
+        case .success(let url):
+            do {
+                sheet = .importPreview(try TimetableImport.parseFile(at: url))
+            } catch let error as TimetableJson.ParseError {
+                alertText = error.errorDescription
+            } catch {
+                alertText = "读取文件失败：\(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func deleteCurrentTable() {
+        guard let id = store.currentTable?.id else { return }
+        Task {
+            try? await TimetableService(db: environment.db).deleteTable(tableId: id)
+        }
+    }
+
+    // MARK: - 空态引导（场景「空态引导」：导入 + 新建两入口）
 
     private var emptyState: some View {
         VStack(spacing: 16) {
@@ -99,16 +258,23 @@ struct TimetableRootView: View {
                 .foregroundStyle(.tertiary)
             Text("暂无课表")
                 .font(.headline)
-            Text("创建一张空白课表开始；JSON 文件导入随 6b 提供")
+            Text("创建一张空白课表，或从 JSON 文件导入")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Button("创建空白课表") {
-                Task {
-                    let service = TimetableService(db: environment.db)
-                    _ = try? await service.createTable(TimetableJson.defaultTable())
+            HStack(spacing: 12) {
+                Button {
+                    showImporter = true
+                } label: {
+                    Label("导入", systemImage: "square.and.arrow.down")
                 }
+                .buttonStyle(.bordered)
+                Button {
+                    sheet = .newTable
+                } label: {
+                    Label("新建空白课表", systemImage: "plus")
+                }
+                .buttonStyle(.borderedProminent)
             }
-            .buttonStyle(.borderedProminent)
         }
         .padding(.vertical, 60)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -118,7 +284,7 @@ struct TimetableRootView: View {
 // MARK: - 单周网格
 
 /// 单周网格（直译 Android TimetableGrid 几何与分层）：
-/// 背景层 → 指示线 → 非本周泳道 → 本周课程 → 拖拽浮层。
+/// 背景层 → 指示线 → 非本周泳道 → 本周课程（空槽 tap 统一层定位）。
 struct TimetableGridView: View {
     let table: TableMetadataRecord
     let courses: [CourseRecord]
@@ -127,10 +293,8 @@ struct TimetableGridView: View {
     let prefs: (timeline: Bool, date: Bool, periodTime: Bool, nonCurrentWeek: Bool)
     let activePeriodIndex: Int
     let nowMinuteOfDay: Int
-    let dragState: TimetableDragState?
     let onCourseClick: (CourseRecord) -> Void
     let onEmptySlotClick: (Int, Int) -> Void
-    let onCourseMove: (CourseRecord, Int, Int) -> Void
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -201,178 +365,28 @@ struct TimetableGridView: View {
                         totalPeriods: config.periods.count,
                         colWidth: colWidth,
                         colorScheme: colorScheme,
-                        dragState: dragState,
-                        onCourseClick: onCourseClick,
-                        onDragStart: { course, width, height in
-                            dragStart(course, width: width, height: height,
-                                      colWidth: colWidth, periodHeight: periodHeight)
-                        },
-                        onDrag: { dx, dy in dragState?.drag(dx: dx, dy: dy) },
-                        onDragEnd: { dragEnd(colWidth: colWidth, periodHeight: periodHeight) },
-                        onDragCancel: { dragCancel() }
+                        onCourseClick: onCourseClick
                     )
                 }
             }
-
-            dragOverlay(periodHeight: periodHeight, colWidth: colWidth)
         }
-        .onChange(of: courses) { _, _ in
-            // 数据反映落位结果 → 撤浮层（1s 兜底在 reflectAndDismiss 内）
-            reflectAndDismiss()
+        // 空槽 tap 定位（直译 GridBackgroundLayer pointerInput；课程块为 Button 消费自身点击）
+        .contentShape(Rectangle())
+        .onTapGesture(coordinateSpace: .local) { location in
+            handleEmptyTap(location, periodHeight: periodHeight, colWidth: colWidth)
         }
     }
 
-    // MARK: - 拖拽链路（D-2，直译 TimetableGrid.kt:139-223）
-
-    /// 待反映的落位（数据反映/1s 兜底后撤浮层）。
-    private struct PendingMove: Equatable {
-        var courseId: Int64
-        var day: Int
-        var period: Int
-    }
-
-    @State private var pendingMove: PendingMove?
-    @State private var lastDropped: (id: Int64, size: CGSize)?
-    @State private var settleTask: Task<Void, Never>?
-    @State private var overlaySize: CGSize?
-    @State private var fallbackTask: Task<Void, Never>?
-
-    private func courseTopLeft(_ course: CourseRecord, colWidth: CGFloat, periodHeight: CGFloat) -> CGPoint {
-        let dayIndex = sortedVisibleDays.firstIndex(of: course.dayOfWeek) ?? 0
-        let periodIndex = max(config.periods.firstIndex { $0.index == course.startPeriod } ?? 0, 0)
-        return CGPoint(
-            x: Self.timeLabelWidth + CGFloat(dayIndex) * colWidth,
-            y: periodHeight * CGFloat(periodIndex)
+    /// 点击无课区域 → (星期, 节次) 定位，打开新建编辑器预填。
+    private func handleEmptyTap(_ location: CGPoint, periodHeight: CGFloat, colWidth: CGFloat) {
+        guard colWidth > 0, periodHeight > 0, !sortedVisibleDays.isEmpty, !config.periods.isEmpty else { return }
+        let gridHeight = periodHeight * CGFloat(config.periods.count)
+        guard location.x >= Self.timeLabelWidth, location.y >= 0, location.y <= gridHeight else { return }
+        let dayIndex = min(
+            max(Int((location.x - Self.timeLabelWidth) / colWidth), 0),
+            sortedVisibleDays.count - 1
         )
-    }
-
-    private func dragStart(_ course: CourseRecord, width: CGFloat, height: CGFloat,
-                           colWidth: CGFloat, periodHeight: CGFloat) {
-        guard let dragState else { return }
-        lastDropped = nil
-        overlaySize = CGSize(width: width, height: height)
-        dragState.start(
-            course: course,
-            blockTopLeft: courseTopLeft(course, colWidth: colWidth, periodHeight: periodHeight),
-            width: width, height: height
-        )
-        // 浮层从原尺寸 spring 长到整列 × 全课高（对齐 spring(700f, 0.85f)）
-        let target = CGSize(width: colWidth, height: periodHeight * CGFloat(course.duration))
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-            overlaySize = target
-        }
-    }
-
-    private func dragEnd(colWidth: CGFloat, periodHeight: CGFloat) {
-        guard let dragState, let course = dragState.draggingCourse else {
-            dragState?.reset()
-            return
-        }
-        let target = TimetableLayout.resolveDropTarget(
-            course: course,
-            dragPositionX: dragState.dragPosition.x,
-            dragPositionY: dragState.dragPosition.y,
-            colWidth: colWidth,
-            timeLabelWidth: Self.timeLabelWidth,
-            periodHeight: periodHeight,
-            sortedVisibleDays: sortedVisibleDays,
-            periods: config.periods,
-            courses: courses
-        )
-        if let target,
-           target.dayOfWeek != course.dayOfWeek || target.startPeriod != course.startPeriod {
-            // 有效落位：220ms 落位动画 → 提交数据 → 浮层保留至观察反映（1s 兜底）
-            var moved = course
-            moved.dayOfWeek = target.dayOfWeek
-            moved.startPeriod = target.startPeriod
-            let targetTopLeft = courseTopLeft(moved, colWidth: colWidth, periodHeight: periodHeight)
-            let state = dragState
-            settleTask?.cancel()
-            settleTask = Task { @MainActor in
-                withAnimation(.easeInOut(duration: 0.22)) {
-                    state.moveTo(targetTopLeft)
-                    state.settleScale = 1.00
-                }
-                try? await Task.sleep(for: .milliseconds(230))
-                guard !Task.isCancelled else { return }
-                onCourseMove(course, target.dayOfWeek, target.startPeriod)
-                lastDropped = (course.id ?? 0, CGSize(width: colWidth, height: periodHeight * CGFloat(course.duration)))
-                pendingMove = PendingMove(courseId: course.id ?? 0, day: target.dayOfWeek, period: target.startPeriod)
-            }
-        } else {
-            snapBack()
-        }
-    }
-
-    private func dragCancel() {
-        guard let dragState else { return }
-        snapBack(from: dragState.dragPosition, to: dragState.originalPosition)
-    }
-
-    private func snapBack(from: CGPoint? = nil, to: CGPoint? = nil) {
-        guard let dragState else { return }
-        let start = from ?? dragState.dragPosition
-        let end = to ?? dragState.originalPosition
-        let state = dragState
-        settleTask?.cancel()
-        settleTask = Task { @MainActor in
-            withAnimation(.easeInOut(duration: 0.22)) {
-                state.moveTo(end)
-                state.settleScale = 1.00
-            }
-            try? await Task.sleep(for: .milliseconds(230))
-            guard !Task.isCancelled else { return }
-            state.reset()
-        }
-    }
-
-    /// 数据反映落位结果后撤浮层（由 courses onChange 驱动；1s 兜底强制撤除）。
-    private func reflectAndDismiss() {
-        guard let pending = pendingMove, let dragState else { return }
-        let reflected = courses.contains {
-            $0.id == pending.courseId && $0.dayOfWeek == pending.day && $0.startPeriod == pending.period
-        }
-        if reflected {
-            dragState.reset()
-            pendingMove = nil
-            overlaySize = nil
-            return
-        }
-        if fallbackTask == nil {
-            let snapshot = pending
-            fallbackTask = Task { @MainActor in
-                try? await Task.sleep(for: .seconds(1))
-                fallbackTask = nil
-                guard pendingMove == snapshot else { return }
-                dragState.reset()
-                pendingMove = nil
-                overlaySize = nil
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func dragOverlay(periodHeight: CGFloat, colWidth: CGFloat) -> some View {
-        if let dragState, let course = dragState.draggingCourse {
-            let size = overlaySize ?? CGSize(width: dragState.startWidth, height: dragState.startHeight)
-            CourseBlockView(
-                course: course,
-                isCurrentWeek: course.weekRule.value.contains(currentWeek),
-                colorScheme: colorScheme,
-                isDragging: true,
-                scaleOverride: dragState.settleScale,
-                width: size.width,
-                height: size.height,
-                dragState: dragState,
-                onDragStart: nil,
-                onDrag: nil,
-                onDragEnd: nil,
-                onDragCancel: nil,
-                onClick: { _ in }
-            )
-            .offset(x: dragState.dragPosition.x, y: dragState.dragPosition.y)
-            .shadow(color: .black.opacity(0.25), radius: 10, y: 4) // 拖起视觉反馈
-            .zIndex(10)
-        }
+        let periodIndex = min(max(Int(location.y / periodHeight), 0), config.periods.count - 1)
+        onEmptySlotClick(sortedVisibleDays[dayIndex], config.periods[periodIndex].index)
     }
 }

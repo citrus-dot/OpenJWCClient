@@ -56,25 +56,7 @@ final class AppEnvironment {
         if let result = try? await registry.syncBuiltIns(scriptDirectory: dir) {
             NSLog("SourceRegistry 播种完成：\(result.installed) 个源，跳过 \(result.skippedFiles.count) 个")
         }
-        #if DEBUG
-        // 6a 手验：-startTimetable 且无任何课表时，建表 + 注入示例课程（6b 编辑器到位后移除）
-        if ProcessInfo.processInfo.arguments.contains("-startTimetable") {
-            let dao = TimetableDao(db: db)
-            let isEmpty = (try? await dao.allTables().isEmpty) ?? false
-            if isEmpty {
-                let service = TimetableService(db: db)
-                let tableId = (try? await service.createTable(TimetableJson.defaultTable())) ?? 0
-                for (day, name) in [(1, "高等数学"), (3, "大学物理"), (5, "体育")] {
-                    _ = try? await dao.insertCourse(CourseRecord(
-                        id: nil, tableId: tableId, name: name, teacher: "张老师", location: "教一-101",
-                        dayOfWeek: day, startPeriod: day == 5 ? 6 : 1, duration: 2,
-                        color: TimetableJson.deterministicColor(for: name),
-                        weekRule: JSONIntSet(Set(1...16)), note: ""
-                    ))
-                }
-            }
-        }
-        #endif
+        // 注：6a 的 DEBUG 魔棒按钮与 -startTimetable 示例注入已随 6b（编辑器/导入到位）移除。
         migrateLegacyLlmConfig()
     }
 

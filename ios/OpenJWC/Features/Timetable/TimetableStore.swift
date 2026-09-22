@@ -2,61 +2,11 @@ import Foundation
 import GRDB
 import OpenJWCCore
 
-/// 拖拽共享状态（直译 Android TimetableDragState）：位置为「网格内容坐标系」pt 偏移
-/// （内容区左上角为原点，已含左侧节次标签宽度）。
-@Observable
-final class TimetableDragState {
-    private(set) var draggingCourse: CourseRecord?
-    private(set) var dragPosition: CGPoint = .zero
-    private(set) var originalPosition: CGPoint = .zero
-    /// 原块尺寸，用于浮层出现时从原尺寸平滑过渡到目标尺寸。
-    private(set) var startWidth: CGFloat = 0
-    private(set) var startHeight: CGFloat = 0
-    /// 落位/回弹动画的缩放覆盖（1.06→1.00）；nil = 正常缩放。
-    var settleScale: Float?
-    /// 手势会话存活标志：长按成立 → true；end/cancel/系统中断复位。
-    /// 块视图据此防重入（历史 bug：本地 @State 与全局脱节导致块永久卡死）。
-    private(set) var gestureAlive = false
-
-    var isDragging: Bool { draggingCourse != nil }
-
-    /// 是否允许开始一次新拖拽（无进行中会话）。
-    func canStart() -> Bool {
-        !gestureAlive
-    }
-
-    func start(course: CourseRecord, blockTopLeft: CGPoint, width: CGFloat, height: CGFloat) {
-        guard canStart() else { return }
-        gestureAlive = true
-        draggingCourse = course
-        originalPosition = blockTopLeft
-        dragPosition = blockTopLeft
-        startWidth = width
-        startHeight = height
-    }
-
-    func drag(dx: CGFloat, dy: CGFloat) {
-        guard gestureAlive else { return }
-        dragPosition.x += dx
-        dragPosition.y += dy
-    }
-
-    func moveTo(_ position: CGPoint) {
-        guard gestureAlive else { return }
-        dragPosition = position
-    }
-
-    /// 全量复位（end/cancel/兜底/系统中断共用；任何泄漏状态在此归零）。
-    func reset() {
-        draggingCourse = nil
-        dragPosition = .zero
-        originalPosition = .zero
-        startWidth = 0
-        startHeight = 0
-        settleScale = nil
-        gestureAlive = false
-    }
-}
+// TODO(挂起): 长按拖拽调课已按用户决定挂起（6b 前移除，完整实现见提交 f1f597c 的
+// TimetableDragState + 块手势 sequenced 链 + 落位/回弹浮层动画）。恢复时：
+// ① 从 f1f597c 取回 TimetableDragState（本文件）与拖拽链（TimetableView/CourseBlockView）；
+// ② 块手势状态必须单源化进 DragState（勿回退到视图本地 @State——历史卡死 bug 根因）；
+// ③ moveCourse 走 dao.updateCoursePosition 专用 UPDATE（勿改回 upsert——历史复制行 bug 根因）。
 
 /// 课表数据快照（观察闭包一次组装，removeDuplicates 后整体推送）。
 struct TimetableDataSnapshot: Equatable {
@@ -72,7 +22,7 @@ struct TimetableDataSnapshot: Equatable {
 }
 
 /// 课表 tab 状态机（对齐 Android TimetableViewModel）：
-/// 单闭包 ValueObservation 多表组装 + currentWeek 状态机 + 分钟对齐当前节 + 拖拽状态。
+/// 单闭包 ValueObservation 多表组装 + currentWeek 状态机 + 分钟对齐当前节。
 @MainActor
 @Observable
 final class TimetableStore {
@@ -85,12 +35,14 @@ final class TimetableStore {
     /// 当前时刻的「今天午夜起分钟数」（指示线插值用）。
     private(set) var nowMinuteOfDay = 0
 
-    let dragState = TimetableDragState()
+    /// 显示开关（UserSettings 快照；Me 设置页保存后调用 reloadPrefs 即时生效）。
+    var displayPrefs = (timeline: true, date: true, periodTime: true, nonCurrentWeek: true)
 
     private let database: any DatabaseWriter
     private let settings: SettingsStore
     private let dao: TimetableDao
     private var observation: (any DatabaseCancellable)?
+    private var lastCurrentKey: (id: Int64?, config: SemesterConfig?)?
     /// 内部周更新标志（程序改周无动画滚动；外部滑页才回写）。对齐 Android isInternalWeekUpdate。
     private var internalWeekUpdate = false
     private var minuteTask: Task<Void, Never>?
@@ -101,6 +53,7 @@ final class TimetableStore {
         self.dao = TimetableDao(db: db)
         startObservation()
         startMinuteLoop()
+        reloadPrefs()
     }
 
     // MARK: - 派生
@@ -109,10 +62,10 @@ final class TimetableStore {
     var courses: [CourseRecord] { snapshot.courses }
     var config: SemesterConfig? { snapshot.current?.semesterConfig }
 
-    /// 显示开关（读 UserSettings 快照；Me 设置页保存后由视图重读）。
-    var displayPrefs: (timeline: Bool, date: Bool, periodTime: Bool, nonCurrentWeek: Bool) {
+    /// 显示开关重读（Me 设置页保存后调用；课表 tab onAppear 也会调用）。
+    func reloadPrefs() {
         let s = settings.loadUserSettings()
-        return (s.showTimeline, s.showDate, s.showPeriodTime, s.showNonCurrentWeek)
+        displayPrefs = (s.showTimeline, s.showDate, s.showPeriodTime, s.showNonCurrentWeek)
     }
 
     /// 当周显示的课程（weekRule 含当前周）。
@@ -155,26 +108,6 @@ final class TimetableStore {
         programmaticWeek(week)
     }
 
-    // MARK: - 数据变更（供视图/菜单调用，经 TimetableService 或直写后观察自动刷新）
-
-    func moveCourse(_ course: CourseRecord, toDay day: Int, startPeriod: Int) async {
-        guard let courseId = course.id else {
-            NSLog("TimetableStore.moveCourse 拒绝：course.id 为 nil")
-            return
-        }
-        do {
-            let rows = try await dao.updateCoursePosition(
-                courseId: courseId, dayOfWeek: day, startPeriod: startPeriod
-            )
-            NSLog("TimetableStore.moveCourse id=%lld → day=%d period=%d rows=%lld", courseId, day, startPeriod, rows)
-            if rows == 0 {
-                NSLog("TimetableStore.moveCourse 警告：UPDATE 未命中任何行（id 不存在？）")
-            }
-        } catch {
-            NSLog("TimetableStore.moveCourse 失败: \(error)")
-        }
-    }
-
     // MARK: - 观察与分钟循环
 
     private func startObservation() {
@@ -190,12 +123,12 @@ final class TimetableStore {
                   value.tables.count, value.current?.tableName ?? "nil", value.courses.count)
             Task { @MainActor in
                 guard let self else { return }
-                let hadTable = self.snapshot.current != nil
                 self.snapshot = value
-                // 表切换或首次出现表 → 重算当前周
-                if !hadTable && value.current != nil {
-                    self.recomputeCurrentWeek()
-                }
+                // 当前表切换（含首次出现/删表自动切换/导入新表）或开学配置变更 → 重算当前周
+                let key = (id: value.current?.id, config: value.current?.semesterConfig)
+                defer { self.lastCurrentKey = key }
+                guard key.id != self.lastCurrentKey?.id || key.config != self.lastCurrentKey?.config else { return }
+                self.recomputeCurrentWeek()
             }
         }
     }

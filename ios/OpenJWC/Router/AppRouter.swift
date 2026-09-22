@@ -15,14 +15,7 @@ struct DeepLink: Equatable {
 /// 深链动作统一在首帧渲染后由 AppShellView 消费（避免 NavigationStack 未挂载丢失）。
 @Observable
 final class AppRouter {
-    init() {
-        // DEBUG 手验直落：launch argument `-startTimetable 1` → 启动即切课表 tab
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-startTimetable") {
-            selectedTab = .timetable
-        }
-        #endif
-    }
+    init() {}
 
     /// 深链 destination 值（对齐 Android NotificationNavigation）。
     static let destNewsDetail = "news_detail"

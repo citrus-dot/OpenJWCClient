@@ -29,6 +29,13 @@ struct SettingsHomeView: View {
                     Label("格言", systemImage: "text.quote")
                 }
             }
+            Section("课表") {
+                NavigationLink {
+                    TimetablePrefsView()
+                } label: {
+                    Label("课表设置", systemImage: "tablecells")
+                }
+            }
             Section("关于") {
                 NavigationLink {
                     AboutView()

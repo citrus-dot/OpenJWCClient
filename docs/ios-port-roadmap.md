@@ -208,16 +208,22 @@ swift test --skip AllSourcesSmoke --skip ScriptAcceptance --skip LLMKeyAcceptanc
 # 期望：✔ Test run with 71 tests in 16 suites passed
 ```
 
-### 阶段 6 — 课表（实施中：6a 完成待手验，6b 未开始）
-周视图自定义 Layout（lane/segment 直译）/ 编辑器 / 长按拖拽 + 弹性落点 / JSON 导入导出。
+### 阶段 6 — 课表（实施中：6a+6b 已完成，待 6b 手验 + 组 9 归档）
+周视图自定义 Layout（lane/segment 直译）/ 编辑器 / JSON 导入导出。
 **立案**：`openspec/changes/ios-timetable/` 四件套已评审通过（方案 b = JSON 导入先行、WebView 教务导入延后另立 change，决策与主流方案对照见 design D-6/D-6-补）。
 **6a 已完成**（`7b5777d` + `b604f4d` + `f1f597c`）：
 - core 新增 `Timetable/`：`TimetableLayout`（泳道三步算法/落点解算/冲突判定/周次文案）、`TimetableJson`（**stableJavaHash 双端同色**、weeks 三态解析、13 节扩展、导出回环）、`TimetableService`（表 CRUD/导入事务）；`TimetableDao` public 化 + 观察静态查询 + `updateCoursePosition` 专用 UPDATE
-- app 课表 tab 转正：周翻页（TabView .page 双向同步）、背景 Canvas、节次标签/日期表头（今天高亮）、时间指示线、课程分层（本周全列宽/非本周泳道淡显/拖动露层）、**长按拖拽全链路**（浮层 spring 长到整列/220ms 落位回弹/数据反映撤浮层 + 1s 兜底）
-- 拖拽状态机重构（手验反馈驱动）：状态单源化进 `TimetableDragState`（gestureAlive/canStart/reset 全量归零），块手势用 **@GestureState 自动复位**消除中断泄漏；moveCourse 改专用 UPDATE 杜绝复制行
+- app 课表 tab 转正：周翻页（TabView .page 双向同步）、背景 Canvas、节次标签/日期表头（今天高亮）、时间指示线、课程分层（本周全列宽/非本周泳道淡显）
 - 离线 `swift test` **98/19 全绿**（+27 项：布局/JSON/Service）；模拟器验证网格/表头/示例课渲染正确
-**6a 遗留**：待用户拖拽手验（落位/回弹/翻页/高亮）；「单列字符」现象待 6b 定位（疑周次失配走泳道半列宽）
-**6b 未开始**（tasks 组 5–8）：课程详情/编辑器、表管理（菜单/选择/配置）、JSON 文件导入导出、AgentRuntime 注入 GrdbTimetableSource、Me 课表设置页；DEBUG 临时件（魔棒/示例数据/-startTimetable 参数）随 6b 移除
+**拖拽挂起（2026-09-22 用户决定）**：长按拖拽调课整体移除挂起为待办（完整实现保留在提交 `f1f597c`，恢复要点已写 TODO 注释于 `TimetableStore.swift`）；spec「长按拖拽调课」需求标注暂缓。课程块保留点击详情与按压缩放。
+**6b 已完成**（tasks 组 5–8 + DEBUG 临时件移除）：
+- 课程详情 sheet（非本周徽标/周次文案/备注分组/删除确认）+ 课程编辑器（名称必填/星期/起止节/每周·单·双·自定义周次网格/16 色板名称驱动自动配色+手动锁定/冲突实时提示 1·2·≥3 门禁存）；空槽点击预填天/节新建
+- 表管理：顶栏表名入口 + 管理菜单（切表/学期配置/加课/导出/文件导入/建空表/删表，无快捷方式项）+ 表选择 sheet（当前高亮/新建/导入）+ 学期配置编辑器三模式复用（编辑/新建/导入预览；开学日期归一周一、周数滑块 ≤30、周末开关、节次增删改 + 止>起与不重叠校验禁存、节数低于在用警告不阻断）+ 删当前表自动切剩余首表
+- JSON 导入导出：`fileExporter`（表名净化 `\ / : * ? " < > |` 与空白 → `_`）+ `fileImporter`（application/json → parseExternal → 预览确认 → confirmImport 事务）+ 解析失败具体原因提示
+- Agent 接线：`AgentRuntime.makeLoop()` 注入 `GrdbTimetableSource`（四课表工具自动暴露）；Me 课表设置页（四开关 + 迷你网格预览实时反映）
+- DEBUG 临时件移除：魔棒按钮 / `-startTimetable` 示例注入与启动参数
+**当前验证状态**：离线 `swift test` 98/19 全绿；`xcodebuild` iPhone 17 模拟器构建通过；启动冒烟无崩溃（观察推送 tables/courses 正常）。
+**遗留**：6b 手验清单（编辑/表管理/导入导出回环/聊天问课表/Me 开关即时性）；组 9 归档收尾。
 **交接**：调研指令与实施节奏见 `docs/ios-stage6-handoff.md`。
 
 ### 阶段 7 — 平台集成（Tahoe 后）

@@ -32,7 +32,8 @@ struct AgentRuntime: @unchecked Sendable {
         let corpus = GrdbNoticeCorpus(db: db)
         return AgentLoop(
             client: client,
-            tools: AgentTools(repository: corpus),
+            // D-5：注入课表源 → get_timetable/list_timetables/get_courses_on/find_course 自动暴露
+            tools: AgentTools(repository: corpus, timetable: GrdbTimetableSource(db: db)),
             repository: corpus
         )
     }
