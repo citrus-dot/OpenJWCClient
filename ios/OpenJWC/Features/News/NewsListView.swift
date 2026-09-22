@@ -190,8 +190,11 @@ struct NewsListView: View {
     #if DEBUG
     private func scheduleTestNotification(destination: String, newsId: String?) {
         let center = UNUserNotificationCenter.current()
-        center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
-            guard granted else { return }
+        center.requestAuthorization(options: [.alert, .sound]) { granted, error in
+            guard granted else {
+                NSLog("深链测试：通知授权未通过（若此前拒绝过，需到模拟器 设置→通知→OpenJWC 手动打开）\(error.map { " \($0)" } ?? "")")
+                return
+            }
             var userInfo: [String: Any] = ["destination": destination]
             if let newsId { userInfo["news_id"] = newsId }
             let content = UNMutableNotificationContent()
@@ -204,7 +207,13 @@ struct NewsListView: View {
                 identifier: "debug-deeplink-\(UUID().uuidString)",
                 content: content, trigger: trigger
             )
-            center.add(request)
+            center.add(request) { error in
+                if let error {
+                    NSLog("深链测试：通知排程失败 \(error)")
+                } else {
+                    NSLog("深链测试：通知已排程（5s 后触发）destination=\(destination) newsId=\(newsId ?? "-")")
+                }
+            }
         }
     }
     #endif

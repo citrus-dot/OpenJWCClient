@@ -60,4 +60,14 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
         ))
         completionHandler()
     }
+
+    /// 前台同样显示横幅：iOS 默认前台静默丢弃通知，深链调试入口触发时 App 正在前台，
+    /// 不加此回调则横幅永远不出现（点不了也就无法验证点击深链）。
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
+    }
 }
