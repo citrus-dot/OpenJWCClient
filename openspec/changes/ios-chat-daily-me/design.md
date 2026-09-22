@@ -83,7 +83,7 @@ assistant 气泡、日报正文、协议页均用 MarkdownUI（阶段 4 已接�
 - 自动滚动锚定最后一条用户消息；非底部时显示回底按钮
 - 气泡：user 右对齐纯文本 + 附件标题徽标；assistant Markdown；最大宽 0.85；长按菜单（复制/删除带确认）
 - 工具卡：summary 折叠/展开（默认首行）；只有 read_notice + targetId 显示跳转；详情跳转前预取 notice（对齐 Android 预解析以复用 push 路由）
-- 输入：TextEditor + 发送键；输入截断 10000 字；生成中禁发（无停止按钮，对齐 Android）
+- 输入：TextEditor + 发送/停止一键切换（D-12）；输入截断 10000 字；空串禁发
 - 失败：RetryRow 固定插在最后一条用户消息之后；`configRelated` 错误附「去设置」跳 LLM 设置
 
 ### D-10 iOS AgentLoop 取消语义对接

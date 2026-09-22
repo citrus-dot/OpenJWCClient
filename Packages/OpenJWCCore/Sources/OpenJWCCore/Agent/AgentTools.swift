@@ -2,21 +2,21 @@ import Foundation
 
 /// 本地资讯工具集（结构化工具，不经过 Shell）。
 /// 所有工具只读；返回文本会被 AgentLoop 按字节预算截断后再交给模型。
-final class AgentTools: Sendable {
-    static let toolSearch = "search_notices"
-    static let toolRead = "read_notice"
-    static let toolLabels = "list_labels"
-    static let toolSources = "list_sources"
-    static let toolTime = "current_time"
-    static let toolSourceStatus = "get_source_status"
-    static let toolDailyReport = "get_daily_report"
-    static let toolTimetable = "get_timetable"
-    static let toolTimetables = "list_timetables"
-    static let toolCoursesOn = "get_courses_on"
-    static let toolFindCourse = "find_course"
+public final class AgentTools: Sendable {
+    public static let toolSearch = "search_notices"
+    public static let toolRead = "read_notice"
+    public static let toolLabels = "list_labels"
+    public static let toolSources = "list_sources"
+    public static let toolTime = "current_time"
+    public static let toolSourceStatus = "get_source_status"
+    public static let toolDailyReport = "get_daily_report"
+    public static let toolTimetable = "get_timetable"
+    public static let toolTimetables = "list_timetables"
+    public static let toolCoursesOn = "get_courses_on"
+    public static let toolFindCourse = "find_course"
 
     /// 每页条数，与后端 VFS 一致。
-    static let pageSize = 20
+    public static let pageSize = 20
 
     private static let maxReadChars = 12_000
     private static let defaultReadChars = 6_000
@@ -26,12 +26,12 @@ final class AgentTools: Sendable {
     private static let maxSummaryChars = 600
     private static let weekdayNames = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
 
-    let repository: any NoticeCorpus
-    let timetable: (any TimetableSource)?
-    let dailyReport: (any DailyReportSource)?
+    public let repository: any NoticeCorpus
+    public let timetable: (any TimetableSource)?
+    public let dailyReport: (any DailyReportSource)?
     private let timeZone: TimeZone
 
-    init(
+    public init(
         repository: any NoticeCorpus,
         timetable: (any TimetableSource)? = nil,
         dailyReport: (any DailyReportSource)? = nil,
@@ -180,7 +180,7 @@ final class AgentTools: Sendable {
     }
 
     /// 实际暴露给模型的工具（没有课表不暴露课表工具，没有日报不暴露日报工具）。
-    var specs: [AgentToolSpec] {
+    public var specs: [AgentToolSpec] {
         var all = noticeSpecs
         if dailyReport != nil { all.append(dailyReportSpec) }
         if timetable != nil { all.append(contentsOf: timetableSpecs) }
@@ -189,12 +189,12 @@ final class AgentTools: Sendable {
 
     // MARK: - 元信息
 
-    func supports(_ name: String) -> Bool {
+    public func supports(_ name: String) -> Bool {
         specs.contains { $0.name == name }
     }
 
     /// 工具指向的本地对象 id（目前只有 read_notice 的资讯 id），用于 UI 跳转。
-    func targetId(_ name: String, _ arguments: String) -> String? {
+    public func targetId(_ name: String, _ arguments: String) -> String? {
         guard name == Self.toolRead,
               let obj = Self.parseObject(arguments),
               let id = Self.string(obj, "id")?.trimmingCharacters(in: .whitespaces),
@@ -203,7 +203,7 @@ final class AgentTools: Sendable {
     }
 
     /// 逐行列出所有参数的人类可读明细，用于工具卡片展示。
-    func summarize(_ name: String, _ arguments: String) async -> String {
+    public func summarize(_ name: String, _ arguments: String) async -> String {
         let obj = Self.parseObject(arguments)
         func str(_ key: String) -> String { Self.string(obj, key) ?? "" }
         func num(_ key: String) -> Int? { Self.int(obj, key) }

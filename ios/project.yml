@@ -2,13 +2,18 @@ name: OpenJWC
 options:
   bundleIdPrefix: org.openjwc
   deploymentTarget:
-    iOS: "26.0"
+    # D6：iOS 18.0 baseline；iOS 26 Liquid Glass 走 if #available 增强
+    iOS: "18.0"
   createIntermediateGroups: true
 
 packages:
-  GRDB:
-    url: https://github.com/groue/GRDB.swift
-    from: "7.11.1"
+  # 本地域层包（阶段 1–3 产出），app 经它传递依赖 GRDB/SwiftSoup
+  OpenJWCCore:
+    path: ../Packages/OpenJWCCore
+  # D-3：Markdown 正文渲染
+  MarkdownUI:
+    url: https://github.com/gonzalezreal/MarkdownUI
+    from: "2.4.0"
 
 settings:
   base:
@@ -21,9 +26,16 @@ targets:
     type: application
     platform: iOS
     sources:
-      - OpenJWC
+      - path: OpenJWC
+        excludes:
+          # 脚本资产单独以 folder reference 打包（D-5），避免 xcodegen 展开成散文件
+          - "Resources/Sources"
+      - path: OpenJWC/Resources/Sources
+        type: folder
+        buildPhase: resources
     dependencies:
-      - package: GRDB
+      - package: OpenJWCCore
+      - package: MarkdownUI
     info:
       path: OpenJWC/Info.plist
       properties:
@@ -37,20 +49,8 @@ targets:
       base:
         GENERATE_INFOPLIST_FILE: false
 
-  OpenJWCTests:
-    type: bundle.unit-test
-    platform: iOS
-    sources:
-      - OpenJWCTests
-    dependencies:
-      - target: OpenJWC
-
 schemes:
   OpenJWC:
     build:
       targets:
         OpenJWC: all
-        OpenJWCTests: [test]
-    test:
-      targets:
-        - OpenJWCTests

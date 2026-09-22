@@ -3,8 +3,8 @@ import Foundation
 /// 本地 Agent 循环（与后端 `internal/service/agent/loop.go` 同构，逐行直译 Android AgentLoop.kt）：
 /// 系统提示 + 元数据 + 历史 → 多轮「模型（带工具）→ 执行工具 → 观察」→
 /// 最后用一次**禁用工具**的流式请求产出最终答案（工具轮正文不公开）。
-final class AgentLoop: Sendable {
-    static let truncatedSuffix = "\n[内容已截断]"
+public final class AgentLoop: Sendable {
+    public static let truncatedSuffix = "\n[内容已截断]"
 
     private let client: any LlmClient
     private let tools: AgentTools
@@ -12,7 +12,7 @@ final class AgentLoop: Sendable {
     private let budget: AgentBudget
     private let timeZone: TimeZone
 
-    init(
+    public init(
         client: any LlmClient,
         tools: AgentTools,
         repository: any NoticeCorpus,
@@ -27,7 +27,7 @@ final class AgentLoop: Sendable {
     }
 
     /// 事件流。失败不抛出，而是产出 runFailed 事件（对齐 Android Flow 语义）。
-    func run(_ request: AgentRequest) -> AsyncStream<AgentEvent> {
+    public func run(_ request: AgentRequest) -> AsyncStream<AgentEvent> {
         AsyncStream { continuation in
             let task = Task {
                 let runId = UUID().uuidString.prefix(8).description
@@ -68,7 +68,7 @@ final class AgentLoop: Sendable {
     }
 
     /// 便捷入口：只收集最终答案（日报这类批量任务用）。失败时抛出 AgentRunFailedException。
-    func answer(_ request: AgentRequest) async throws -> String {
+    public func answer(_ request: AgentRequest) async throws -> String {
         var builder = ""
         var failure: (code: String, summary: String)?
         for await event in run(request) {

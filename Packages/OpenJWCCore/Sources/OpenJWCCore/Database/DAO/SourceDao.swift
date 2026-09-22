@@ -100,10 +100,14 @@ public struct SourceDao: Sendable {
 }
 
 /// 日报 DAO。
-struct DailyReportDao: Sendable {
+public struct DailyReportDao: Sendable {
     let db: any DatabaseWriter
 
-    func get(day: String) async throws -> DailyReportRecord? {
+    public init(db: any DatabaseWriter) {
+        self.db = db
+    }
+
+    public func get(day: String) async throws -> DailyReportRecord? {
         try await db.read { db in
             try DailyReportRecord.fetchOne(
                 db, sql: "SELECT * FROM daily_reports WHERE day = ? LIMIT 1", arguments: [day]
@@ -112,7 +116,7 @@ struct DailyReportDao: Sendable {
     }
 
     /// 不晚于 before 的最近一份已完成日报。
-    func latestCompleted(before: String) async throws -> DailyReportRecord? {
+    public func latestCompleted(before: String) async throws -> DailyReportRecord? {
         try await db.read { db in
             try DailyReportRecord.fetchOne(
                 db,
@@ -125,8 +129,16 @@ struct DailyReportDao: Sendable {
         }
     }
 
+    /// 已完成日报倒序列表（日期 chips 观察闭包用；对齐 Android observeAll 过滤 completed）。
+    public static func completedDaysSync(_ db: Database) throws -> [DailyReportRecord] {
+        try DailyReportRecord.fetchAll(
+            db,
+            sql: "SELECT * FROM daily_reports WHERE status = 'completed' ORDER BY day DESC"
+        )
+    }
+
     /// 保存阶段结果；**已完成的日报不会被覆盖**（防降级守卫照抄 Android）。
-    func save(day: String, status: String, content: String, sourceCount: Int, error: String?, updatedAt: Int64) async throws {
+    public func save(day: String, status: String, content: String, sourceCount: Int, error: String?, updatedAt: Int64) async throws {
         _ = try await db.write { db in
             try db.execute(
                 sql: """
@@ -143,7 +155,7 @@ struct DailyReportDao: Sendable {
         }
     }
 
-    func clearAll() async throws {
+    public func clearAll() async throws {
         _ = try await db.write { db in
             try db.execute(sql: "DELETE FROM daily_reports")
         }

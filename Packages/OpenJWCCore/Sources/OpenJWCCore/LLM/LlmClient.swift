@@ -3,18 +3,18 @@ import Foundation
 // MARK: - 模型层（对齐 Android net/llm/LlmModels.kt）
 
 /// LLM 供应商协议。绝大多数厂商兼容 OPENAI 的 `/chat/completions`。
-enum LlmProtocol: String, Codable, Sendable {
+public enum LlmProtocol: String, Codable, Sendable {
     case OPENAI, ANTHROPIC, GEMINI
 }
 
 /// 供应商无关的对话消息。
-struct LlmMessage: Sendable, Equatable {
-    var role: String
-    var content: String
-    var toolCallId: String?
-    var toolCalls: [LlmToolCall]?
+public struct LlmMessage: Sendable, Equatable {
+    public var role: String
+    public var content: String
+    public var toolCallId: String?
+    public var toolCalls: [LlmToolCall]?
 
-    init(role: String, content: String = "", toolCallId: String? = nil, toolCalls: [LlmToolCall]? = nil) {
+    public init(role: String, content: String = "", toolCallId: String? = nil, toolCalls: [LlmToolCall]? = nil) {
         self.role = role
         self.content = content
         self.toolCallId = toolCallId
@@ -30,12 +30,12 @@ struct LlmMessage: Sendable, Equatable {
 }
 
 /// 模型请求的一次工具调用。
-struct LlmToolCall: Sendable, Equatable {
-    var id: String
-    var name: String
-    var arguments: String
+public struct LlmToolCall: Sendable, Equatable {
+    public var id: String
+    public var name: String
+    public var arguments: String
 
-    init(id: String = "", name: String = "", arguments: String = "") {
+    public init(id: String = "", name: String = "", arguments: String = "") {
         self.id = id
         self.name = name
         self.arguments = arguments
@@ -43,12 +43,12 @@ struct LlmToolCall: Sendable, Equatable {
 }
 
 /// 提供给模型的工具描述。parametersJson 是 JSON Schema 字符串。
-struct LlmToolSpec: Sendable, Equatable {
-    var name: String
-    var description: String
-    var parametersJson: String
+public struct LlmToolSpec: Sendable, Equatable {
+    public var name: String
+    public var description: String
+    public var parametersJson: String
 
-    init(name: String, description: String, parametersJson: String) {
+    public init(name: String, description: String, parametersJson: String) {
         self.name = name
         self.description = description
         self.parametersJson = parametersJson
@@ -56,36 +56,36 @@ struct LlmToolSpec: Sendable, Equatable {
 }
 
 /// 流式增量。
-enum LlmDelta: Sendable {
+public enum LlmDelta: Sendable {
     case text(String)
     case toolCallDelta(index: Int, id: String?, name: String?, argumentsChunk: String?)
     case finished(String?)
 }
 
 /// LLM HTTP 层错误。
-struct LlmHttpException: Error, CustomStringConvertible {
-    let status: Int
-    let responseText: String
-    var description: String { "LLM HTTP \(status)" }
+public struct LlmHttpException: Error, CustomStringConvertible {
+    public let status: Int
+    public let responseText: String
+    public var description: String { "LLM HTTP \(status)" }
 
-    init(status: Int, responseText: String) {
+    public init(status: Int, responseText: String) {
         self.status = status
         self.responseText = responseText
     }
 }
 
 /// 配置不完整（缺少 Key / baseUrl / model）。
-struct LlmConfigException: Error, CustomStringConvertible {
-    let message: String
-    var description: String { message }
+public struct LlmConfigException: Error, CustomStringConvertible {
+    public let message: String
+    public var description: String { message }
 
-    init(_ message: String) { self.message = message }
+    public init(_ message: String) { self.message = message }
 }
 
 // MARK: - 客户端协议
 
 /// 供应商无关的流式聊天客户端。
-protocol LlmClient: Sendable {
+public protocol LlmClient: Sendable {
     var config: LlmProviderConfig { get }
     func streamChat(messages: [LlmMessage], tools: [LlmToolSpec]) -> AsyncThrowingStream<LlmDelta, Error>
 }
@@ -93,14 +93,14 @@ protocol LlmClient: Sendable {
 // MARK: - 供应商预设
 
 /// 供应商预设，用于设置页一键填充。
-struct LlmPreset: Sendable {
-    let id: String
-    let name: String
-    let baseUrl: String
-    let defaultModel: String
-    let `protocol`: LlmProtocol
+public struct LlmPreset: Sendable {
+    public let id: String
+    public let name: String
+    public let baseUrl: String
+    public let defaultModel: String
+    public let `protocol`: LlmProtocol
 
-    init(id: String, name: String, baseUrl: String, defaultModel: String, protocol: LlmProtocol = .OPENAI) {
+    public init(id: String, name: String, baseUrl: String, defaultModel: String, protocol: LlmProtocol = .OPENAI) {
         self.id = id
         self.name = name
         self.baseUrl = baseUrl
@@ -109,8 +109,8 @@ struct LlmPreset: Sendable {
     }
 }
 
-enum LlmPresets {
-    static let all: [LlmPreset] = [
+public enum LlmPresets {
+    public static let all: [LlmPreset] = [
         LlmPreset(id: "openai", name: "OpenAI", baseUrl: "https://api.openai.com/v1", defaultModel: "gpt-4o-mini"),
         LlmPreset(id: "deepseek", name: "DeepSeek", baseUrl: "https://api.deepseek.com/v1", defaultModel: "deepseek-chat"),
         LlmPreset(id: "moonshot", name: "Moonshot / Kimi", baseUrl: "https://api.moonshot.cn/v1", defaultModel: "moonshot-v1-8k"),
@@ -136,12 +136,12 @@ enum LlmPresets {
 
 /// 兼容 OpenAI `/chat/completions` 的流式客户端（URLSession SSE）。
 /// 覆盖 OpenAI / DeepSeek / Moonshot / GLM / Qwen(DashScope) / OpenRouter / Groq / Ollama 等。
-struct OpenAiCompatibleClient: LlmClient {
-    let config: LlmProviderConfig
+public struct OpenAiCompatibleClient: LlmClient {
+    public let config: LlmProviderConfig
     private let apiKey: String
     private let session: URLSession
 
-    init(config: LlmProviderConfig, apiKey: String, session: URLSession = .shared) {
+    public init(config: LlmProviderConfig, apiKey: String, session: URLSession = .shared) {
         self.config = config
         self.apiKey = apiKey
         self.session = session
@@ -192,7 +192,7 @@ struct OpenAiCompatibleClient: LlmClient {
         return try JSONSerialization.data(withJSONObject: payload)
     }
 
-    func streamChat(messages: [LlmMessage], tools: [LlmToolSpec]) -> AsyncThrowingStream<LlmDelta, Error> {
+    public func streamChat(messages: [LlmMessage], tools: [LlmToolSpec]) -> AsyncThrowingStream<LlmDelta, Error> {
         if apiKey.isEmpty {
             return AsyncThrowingStream { $0.finish(throwing: LlmConfigException("缺少 API Key")) }
         }

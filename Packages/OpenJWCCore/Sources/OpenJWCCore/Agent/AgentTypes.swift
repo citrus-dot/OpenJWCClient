@@ -3,12 +3,12 @@ import Foundation
 // MARK: - Agent 类型（对齐 Android agent/AgentModels.kt + AgentBudget.kt）
 
 /// 提供给模型的工具描述。parameters 是 JSON Schema 字符串。
-struct AgentToolSpec: Sendable, Equatable {
-    var name: String
-    var description: String
-    var parameters: String
+public struct AgentToolSpec: Sendable, Equatable {
+    public var name: String
+    public var description: String
+    public var parameters: String
 
-    init(name: String, description: String, parameters: String) {
+    public init(name: String, description: String, parameters: String) {
         self.name = name
         self.description = description
         self.parameters = parameters
@@ -16,15 +16,15 @@ struct AgentToolSpec: Sendable, Equatable {
 }
 
 /// 一次 Agent 运行的输入。
-struct AgentRequest: Sendable {
+public struct AgentRequest: Sendable {
     /// 用户问题，或日报这类批量任务的任务描述。
-    var query: String
+    public var query: String
     /// 只允许 user / assistant 的已完成历史。
-    var history: [AgentMessage]
+    public var history: [AgentMessage]
     /// 用户显式选中的资讯，会作为证据提示拼进问题。
-    var noticeIds: [String]
+    public var noticeIds: [String]
 
-    init(query: String, history: [AgentMessage] = [], noticeIds: [String] = []) {
+    public init(query: String, history: [AgentMessage] = [], noticeIds: [String] = []) {
         self.query = query
         self.history = history
         self.noticeIds = noticeIds
@@ -32,15 +32,15 @@ struct AgentRequest: Sendable {
 }
 
 /// 对话消息（工具轮会带 toolCalls，工具结果带 toolCallId）。
-struct AgentMessage: Sendable, Equatable {
-    var role: String
-    var content: String
-    var toolCalls: [LlmToolCall]
-    var toolCallId: String?
+public struct AgentMessage: Sendable, Equatable {
+    public var role: String
+    public var content: String
+    public var toolCalls: [LlmToolCall]
+    public var toolCallId: String?
     /// 该条用户消息引用过的资讯 id。
-    var attachmentIds: [String]
+    public var attachmentIds: [String]
 
-    init(
+    public init(
         role: String, content: String = "", toolCalls: [LlmToolCall] = [],
         toolCallId: String? = nil, attachmentIds: [String] = []
     ) {
@@ -56,7 +56,7 @@ struct AgentMessage: Sendable, Equatable {
 }
 
 /// 运行期间对外产出的事件；语义与后端 Chat v2 对齐。
-enum AgentEvent: Sendable {
+public enum AgentEvent: Sendable {
     case runStarted(runId: String)
     case toolStarted(toolId: String, name: String, summary: String, targetId: String?)
     case toolCompleted(toolId: String, name: String, status: String, durationMs: Int64, code: String?)
@@ -64,14 +64,14 @@ enum AgentEvent: Sendable {
     case runCompleted(runId: String)
     case runFailed(runId: String, code: String, summary: String)
 
-    static let deliveryStreaming = "streaming-final"
-    static let deliveryBuffered = "buffered-final"
-    static let statusCompleted = "completed"
-    static let statusFailed = "failed"
+    public static let deliveryStreaming = "streaming-final"
+    public static let deliveryBuffered = "buffered-final"
+    public static let statusCompleted = "completed"
+    public static let statusFailed = "failed"
 }
 
 /// 运行失败分类，用于给出稳定 code 与安全摘要。
-enum AgentFailure: String, CaseIterable, Sendable {
+public enum AgentFailure: String, CaseIterable, Sendable {
     case timeout = "agent_timeout"
     case modelUnavailable = "model_unavailable"
     case modelAuth = "agent_auth_error"
@@ -82,7 +82,7 @@ enum AgentFailure: String, CaseIterable, Sendable {
     case cancelled = "agent_cancelled"
     case failed = "agent_failed"
 
-    var summary: String {
+    public var summary: String {
         switch self {
         case .timeout: return "问答超时，请重试或缩小问题范围"
         case .modelUnavailable: return "模型服务暂不可用，请稍后重试"
@@ -97,7 +97,7 @@ enum AgentFailure: String, CaseIterable, Sendable {
     }
 
     /// 需要用户去「AI 模型设置」修正的失败（聊天页会直接跳过去）。
-    static let configRelated: Set<String> = [
+    public static let configRelated: Set<String> = [
         AgentFailure.configuration.rawValue,
         AgentFailure.modelAuth.rawValue,
         AgentFailure.modelNotFound.rawValue,
@@ -115,18 +115,18 @@ enum AgentFailure: String, CaseIterable, Sendable {
 }
 
 /// 单次 Agent 运行的资源上限。默认值对齐后端 `agent_*` 系统设置，硬编码不可被远端覆盖。
-struct AgentBudget: Sendable {
-    var maxModelRounds: Int
-    var maxToolCalls: Int
-    var maxToolsPerRound: Int
+public struct AgentBudget: Sendable {
+    public var maxModelRounds: Int
+    public var maxToolCalls: Int
+    public var maxToolsPerRound: Int
     /// 单次工具结果字符上限（按 UTF-8 字节计）。
-    var maxToolResultBytes: Int
+    public var maxToolResultBytes: Int
     /// 累计工具结果上限。
-    var maxTotalToolBytes: Int
-    var modelTimeoutMs: Int
-    var runTimeoutMs: Int
+    public var maxTotalToolBytes: Int
+    public var modelTimeoutMs: Int
+    public var runTimeoutMs: Int
 
-    init(
+    public init(
         maxModelRounds: Int = 8,
         maxToolCalls: Int = 16,
         maxToolsPerRound: Int = 4,
@@ -148,26 +148,26 @@ struct AgentBudget: Sendable {
 }
 
 /// 工具执行失败（会作为失败观察交给模型继续检索，不等于整轮失败）。
-struct AgentToolException: Error {
-    let code: String
-    let message: String
+public struct AgentToolException: Error {
+    public let code: String
+    public let message: String
 
-    init(_ code: String, _ message: String) {
+    public init(_ code: String, _ message: String) {
         self.code = code
         self.message = message
     }
 }
 
 /// Agent 以失败终止（携带稳定 code 与安全摘要）。
-struct AgentRunFailedException: Error {
-    let code: String
-    let summary: String
+public struct AgentRunFailedException: Error {
+    public let code: String
+    public let summary: String
 
-    init(code: String, summary: String) {
+    public init(code: String, summary: String) {
         self.code = code
         self.summary = summary
     }
 }
 
 /// 整轮运行超出预算。
-struct AgentRunTimeoutError: Error {}
+public struct AgentRunTimeoutError: Error {}

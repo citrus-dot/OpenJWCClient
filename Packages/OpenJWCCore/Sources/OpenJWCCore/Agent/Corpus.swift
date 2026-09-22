@@ -4,23 +4,23 @@ import GRDB
 // MARK: - 语料/课表/日报 只读协议（对齐 Android data/repository/NoticeCorpus 等）
 
 /// 栏目及其条数。
-struct CorpusLabelCount: Equatable, Sendable {
-    var label: String
-    var count: Int
+public struct CorpusLabelCount: Equatable, Sendable {
+    public var label: String
+    public var count: Int
 
-    init(label: String, count: Int) {
+    public init(label: String, count: Int) {
         self.label = label
         self.count = count
     }
 }
 
 /// 语料目录概览（system 元数据用）。
-struct CorpusCatalog: Equatable, Sendable {
-    var total: Int
-    var firstDay: String?
-    var lastDay: String?
+public struct CorpusCatalog: Equatable, Sendable {
+    public var total: Int
+    public var firstDay: String?
+    public var lastDay: String?
 
-    init(total: Int, firstDay: String?, lastDay: String?) {
+    public init(total: Int, firstDay: String?, lastDay: String?) {
         self.total = total
         self.firstDay = firstDay
         self.lastDay = lastDay
@@ -28,7 +28,7 @@ struct CorpusCatalog: Equatable, Sendable {
 }
 
 /// Agent 只读的本地资讯语料能力。
-protocol NoticeCorpus: Sendable {
+public protocol NoticeCorpus: Sendable {
     func searchNotices(
         query: String, label: String, sourceId: String?, fromDay: String, toDay: String,
         favoriteOnly: Bool, relevance: Bool, limit: Int, offset: Int
@@ -44,16 +44,16 @@ protocol NoticeCorpus: Sendable {
 }
 
 /// 课表快照（Agent 工具视图，含学期计算结果）。
-struct TimetableSnapshot: Sendable {
-    var id: Int64
-    var name: String
-    var startDate: String
-    var totalWeeks: Int
-    var currentWeek: Int?
-    var isCurrent: Bool
-    var courses: [AgentCourse]
+public struct TimetableSnapshot: Sendable {
+    public var id: Int64
+    public var name: String
+    public var startDate: String
+    public var totalWeeks: Int
+    public var currentWeek: Int?
+    public var isCurrent: Bool
+    public var courses: [AgentCourse]
 
-    init(
+    public init(
         id: Int64, name: String, startDate: String, totalWeeks: Int,
         currentWeek: Int?, isCurrent: Bool, courses: [AgentCourse]
     ) {
@@ -68,18 +68,18 @@ struct TimetableSnapshot: Sendable {
 }
 
 /// 课表课程（Agent 视图：周次已解析为集合）。
-struct AgentCourse: Sendable {
-    var name: String
-    var teacher: String
-    var location: String
+public struct AgentCourse: Sendable {
+    public var name: String
+    public var teacher: String
+    public var location: String
     /// 1=周一 … 7=周日。
-    var dayOfWeek: Int
-    var startPeriod: Int
-    var duration: Int
-    var weeks: Set<Int>
-    var note: String
+    public var dayOfWeek: Int
+    public var startPeriod: Int
+    public var duration: Int
+    public var weeks: Set<Int>
+    public var note: String
 
-    init(
+    public init(
         name: String, teacher: String, location: String, dayOfWeek: Int,
         startPeriod: Int, duration: Int, weeks: Set<Int>, note: String
     ) {
@@ -95,29 +95,29 @@ struct AgentCourse: Sendable {
 }
 
 /// 课表读取能力；为 nil 时不暴露课表工具。
-protocol TimetableSource: Sendable {
+public protocol TimetableSource: Sendable {
     func timetables() async throws -> [TimetableSnapshot]
     func currentTimetable() async throws -> TimetableSnapshot?
 }
 
 /// 日报只读能力；为 nil 时不暴露日报工具。
-protocol DailyReportSource: Sendable {
+public protocol DailyReportSource: Sendable {
     func completedReport(day: String) async throws -> String?
 }
 
 // MARK: - GRDB 默认实现
 
 /// 基于阶段 1 DAO 的默认语料实现。
-struct GrdbNoticeCorpus: NoticeCorpus {
+public struct GrdbNoticeCorpus: NoticeCorpus {
     private let noticeDao: NoticeDao
     private let sourceDao: SourceDao
 
-    init(db: any DatabaseWriter) {
+    public init(db: any DatabaseWriter) {
         self.noticeDao = NoticeDao(db: db)
         self.sourceDao = SourceDao(db: db)
     }
 
-    func searchNotices(
+    public func searchNotices(
         query: String, label: String, sourceId: String?, fromDay: String, toDay: String,
         favoriteOnly: Bool, relevance: Bool, limit: Int, offset: Int
     ) async throws -> [NoticeRecord] {
@@ -128,7 +128,7 @@ struct GrdbNoticeCorpus: NoticeCorpus {
         ))
     }
 
-    func countNotices(
+    public func countNotices(
         query: String, label: String, sourceId: String?, fromDay: String, toDay: String,
         favoriteOnly: Bool
     ) async throws -> Int {
@@ -138,19 +138,19 @@ struct GrdbNoticeCorpus: NoticeCorpus {
         )
     }
 
-    func findNotice(id: String) async throws -> NoticeRecord? {
+    public func findNotice(id: String) async throws -> NoticeRecord? {
         try await noticeDao.findById(id: id)
     }
 
-    func corpusLabels() async throws -> [CorpusLabelCount] {
+    public func corpusLabels() async throws -> [CorpusLabelCount] {
         try await noticeDao.labelCounts().map { CorpusLabelCount(label: $0.label, count: $0.labelCount) }
     }
 
-    func subscribedSources() async throws -> [NoticeSourceRecord] {
+    public func subscribedSources() async throws -> [NoticeSourceRecord] {
         try await sourceDao.getSubscribed()
     }
 
-    func corpusCatalog() async throws -> CorpusCatalog {
+    public func corpusCatalog() async throws -> CorpusCatalog {
         let total = try await noticeDao.totalCount()
         guard total > 0 else { return CorpusCatalog(total: 0, firstDay: nil, lastDay: nil) }
         return CorpusCatalog(
@@ -162,16 +162,16 @@ struct GrdbNoticeCorpus: NoticeCorpus {
 }
 
 /// 基于 DAO 的课表读取实现（学期周次在此解析）。
-struct GrdbTimetableSource: TimetableSource {
+public struct GrdbTimetableSource: TimetableSource {
     private let dao: TimetableDao
     private let timeZone: TimeZone
 
-    init(db: any DatabaseWriter, timeZone: TimeZone = .current) {
+    public init(db: any DatabaseWriter, timeZone: TimeZone = .current) {
         self.dao = TimetableDao(db: db)
         self.timeZone = timeZone
     }
 
-    func timetables() async throws -> [TimetableSnapshot] {
+    public func timetables() async throws -> [TimetableSnapshot] {
         let tables = try await dao.allTables()
         var snapshots: [TimetableSnapshot] = []
         for table in tables {
@@ -180,7 +180,7 @@ struct GrdbTimetableSource: TimetableSource {
         return snapshots
     }
 
-    func currentTimetable() async throws -> TimetableSnapshot? {
+    public func currentTimetable() async throws -> TimetableSnapshot? {
         guard let table = try await dao.currentTable() else { return nil }
         return try await snapshot(of: table)
     }
@@ -230,14 +230,14 @@ struct GrdbTimetableSource: TimetableSource {
 }
 
 /// 基于 DAO 的日报读取实现。
-struct GrdbDailyReportSource: DailyReportSource {
+public struct GrdbDailyReportSource: DailyReportSource {
     private let dao: DailyReportDao
 
-    init(db: any DatabaseWriter) {
+    public init(db: any DatabaseWriter) {
         self.dao = DailyReportDao(db: db)
     }
 
-    func completedReport(day: String) async throws -> String? {
+    public func completedReport(day: String) async throws -> String? {
         try await dao.get(day: day).flatMap { record in
             record.status == "completed" ? record.content : nil
         }

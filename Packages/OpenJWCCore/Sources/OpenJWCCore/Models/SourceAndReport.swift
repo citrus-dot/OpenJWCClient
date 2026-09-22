@@ -86,20 +86,32 @@ public struct NoticeSourceRecord: Codable, FetchableRecord, PersistableRecord, E
 
 // MARK: - daily_reports
 
-enum DailyReportStatus: String {
+public enum DailyReportStatus: String {
     case running
     case completed
     case failed
 }
 
-struct DailyReportRecord: Codable, FetchableRecord, PersistableRecord, Equatable {
-    static let databaseTableName = "daily_reports"
+public struct DailyReportRecord: Codable, FetchableRecord, PersistableRecord, Equatable, Sendable {
+    public static let databaseTableName = "daily_reports"
 
     /// yyyy-MM-dd，主键。
-    var day: String
-    var status: String
-    var content: String
-    var sourceCount: Int
-    var error: String?
-    var updatedAt: Int64
+    public var day: String
+    public var status: String
+    public var content: String
+    public var sourceCount: Int
+    public var error: String?
+    public var updatedAt: Int64
+
+    public init(
+        day: String, status: String, content: String,
+        sourceCount: Int, error: String?, updatedAt: Int64
+    ) {
+        self.day = day
+        self.status = status
+        self.content = content
+        self.sourceCount = sourceCount
+        self.error = error
+        self.updatedAt = updatedAt
+    }
 }
