@@ -42,24 +42,24 @@ public struct JSONStringList: Codable, DatabaseValueConvertible, Equatable, Send
 }
 
 /// `Set<Int>` 列：JSON 数组文本存储（对齐 Android `Converters.toIntSet`，课表 weekRule 用）。
-struct JSONIntSet: Codable, DatabaseValueConvertible, Equatable {
-    var value: Set<Int> = []
+public struct JSONIntSet: Codable, DatabaseValueConvertible, Equatable, Sendable {
+    public var value: Set<Int> = []
 
-    init(_ value: Set<Int> = []) {
+    public init(_ value: Set<Int> = []) {
         self.value = value
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         value = Set(try container.decode([Int].self))
     }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         try container.encode(value.sorted())
     }
 
-    var databaseValue: DatabaseValue {
+    public var databaseValue: DatabaseValue {
         let ordered = value.sorted()
         guard let data = try? JSONEncoder().encode(ordered),
               let text = String(data: data, encoding: .utf8) else {
@@ -68,7 +68,7 @@ struct JSONIntSet: Codable, DatabaseValueConvertible, Equatable {
         return text.databaseValue
     }
 
-    static func from(databaseValue: DatabaseValue) -> Self? {
+    public static func from(databaseValue: DatabaseValue) -> Self? {
         guard let text = databaseValue.storage.value as? String else { return nil }
         guard let data = text.data(using: .utf8),
               let list = try? JSONDecoder().decode([Int].self, from: data) else {
