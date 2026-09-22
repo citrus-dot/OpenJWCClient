@@ -2,7 +2,7 @@
 
 > **文档用途**：`/Users/orange/OpenJWC_4ios` 工作区 iOS 移植项目的完整交接与路线规划，供任何新会话（agent 切换）直接接手。本文档自包含：决策链、用户原话存档、已完成工作及**逐项查验命令**、后续路线、风险清单。进度真源 = 本文档 + 项目记忆（ZCode memory / ai-memory）。
 >
-> **最近更新**：2026-09-21（阶段 4 资讯 UI 实施完成：core public 化 + SourceRegistry/NewsCrawlService + 全部资讯 UI + 39 源冒烟 0 失败；详见 §5 阶段 4 小节）　**前版**：2026-09-21（新会话接手核验：Tahoe 已升级、测试数修正为 40/10、环境表刷新）
+> **最近更新**：2026-09-22（阶段 5 聊天+日报+Me 完成并归档：core 编排服务三件套 + 聊天全量 UI（停止/两阶段渲染/工具折叠）+ 日报 + 设置中心；71/16 测试绿。见 §5 阶段 5 小节）　**前版**：2026-09-21（阶段 4 资讯 UI 完成）
 
 ---
 
@@ -189,13 +189,29 @@ xcodebuild -scheme OpenJWC -destination 'platform=iOS Simulator,name=iPhone 17' 
 ### 阶段 4 — 资讯 UI ✅（2026-09-21 完成，见 §5 阶段 4 小节；仅剩用户手验 9.3）
 资讯流 / 源筛选 / 收藏 / 详情（Markdown 渲染）/ 图片查看器 / 通知深链跳转已全部实现并过自动化验收。附件选择器（长按加入附件）属收藏/附件管理细分，随阶段 5 Me 设置中心一并补。
 
-### 阶段 5 — 聊天 + 日报 + Me 设置中心（Tahoe 后）
-流式气泡 / 工具卡片（资讯深链）/ 会话管理 / 日报页 + 手动生成（`PromptTemplates.dailyBatchQuery/dailyMergeQuery` 已备）。
-**Me tab 设置中心**（原散落项集中，D10 功能补全）：LLM 配置编辑器（provider/key/端点）｜**motto 格言**（本地编辑器 + hitokoto.cn 在线一言客户端，每日 1 次缓存 + 手动刷新，对齐 `HitokotoClient`）｜来源编辑器（订阅开关/scheduleMinutes）｜freshDays/抓取间隔等设置项｜用户协议页（README 协议原文呈现，强调非官方）。
-**验收**：重启后工具轨迹从 DB 还原（对齐 Android 行为）；motto 本地+在线双模式可切换。
+### 阶段 5 — 聊天 + 日报 + Me 设置中心 ✅（2026-09-22 完成归档）
 
-### 阶段 6 — 课表（Tahoe 后）
+**OpenSpec change `ios-chat-daily-me`**（归档于 `2026-09-22-ios-chat-daily-me`），交付节奏 5a（core+聊天）/5b（日报+Me）两批验收，全部手验通过。
+
+**产出**：
+- core 新增：`ChatService`（发送编排：占位/事件逐条落库/重试不重插/历史裁剪 ≤20 条 ≤48KB/中断兜底）、`DailyReportService`（actor：8 条/批、>100 拒绝、48KB 合并阈值、COMPLETED 防覆盖）、`HitokotoClient` + `Motto` 按天缓存；public 化第二批（Agent/LLM/Chat/DailyReport 全链路）
+- app 聊天 tab：轮结构消息流、**两阶段流式渲染**（纯 Text 100ms 合并 → 完成 Markdown，规避 MarkdownUI O(N²) 重解析——上游 #426/#445）、三态滚动跟随、**发送/停止一键切换**（iOS 增强，超出 Android 基线）、工具活动折叠容器（生成中自动展开/结束收起「N 个工具 · X 秒」/read_notice 深链）、附件引用三层选择、失败与停止共用重试行 + configRelated「去设置」、会话抽屉、LLM 多配置档案（10 预设/Keychain/测试连接按状态码归类错误）
+- app 日报 tab：日期 chips + 四态 + 手动生成/重试；**Me 完整版**：Hitokoto 头部（按天缓存懒刷新）、设置中心（AI 模型多档案/显示设置 freshDays·crawlDaysGap/来源编辑器三页含导入 .js 校验注册/格言设置 11 分类）、关于 + 用户协议（README 原文 Bundle 资产渲染）
+- 主流实现对照已记入 proposal（ChatGPT/Claude 交互、HIG 生成式 AI、Vercel smoothStream 节流、GRDB 单闭包多表观察官方模式）
+- 用户创意待办：对话页样式选择（tasks 10.1，阶段 8）
+
+**自动化验收**：离线 `swift test` **71 tests / 16 suites 全绿**（基线 40 → 阶段 4 增 11 → 阶段 5 增 20）；全外网套件（39 源冒烟/ScriptAcceptance/LLMKey）单跑。模拟器全场景手验通过（含停止、重试、深链、日报生成、motto 双模式、来源编辑、导入脚本、进度面板全局化）。
+
+```bash
+cd /Users/orange/OpenJWC_4ios/Packages/OpenJWCCore
+swift test --skip AllSourcesSmoke --skip ScriptAcceptance --skip LLMKeyAcceptance 2>&1 | grep "Test run with"
+# 期望：✔ Test run with 71 tests in 16 suites passed
+```
+
+### 阶段 6 — 课表（下一阶段）
 周视图自定义 Layout（lane/segment 直译）/ 编辑器 / 长按拖拽 + 弹性落点 / JSON 导入导出。
+**开工前置**：OpenSpec 立案（proposal→specs→design→tasks→评审）；Android 真源 `ui/timetable/`（36 文件）与 `TimetableDao`（iOS 已有，注意 REPLACE 禁用）。
+**注意**：接入课表后 AgentRuntime 应补 GrdbTimetableSource（课表工具组自动暴露给 Agent，AgentTools 已支持）。
 
 ### 阶段 7 — 平台集成（Tahoe 后）
 BGTaskScheduler 抓取 + 日报 / 通知 + 深链 / 课程提醒 / WidgetKit。**注意语义差异**：iOS 后台调度不保证 Android WorkManager 的准 15 分钟轮询（产品文案要写）。
@@ -220,14 +236,15 @@ Liquid Glass **兜底全覆盖**（策略：各 UI 阶段实现时即就地采�
    ```bash
    sw_vers | grep ProductVersion            # ✅ 26.6.2 Tahoe
    xcodebuild -version                       # ✅ 26.6 (17F113)
-   cd /Users/orange/OpenJWC_4ios/Packages/OpenJWCCore && swift test 2>&1 | grep "Test run with"
-   # 期望 51 tests / 13 suites passed（含 39 源冒烟 ~25min；离线时 ScriptAcceptance/LLMKey/
-   # AllSourcesSmoke 需外网/Key 的用例失败属正常，此时基线约 43 tests / 10 suites）
+   cd /Users/orange/OpenJWC_4ios/Packages/OpenJWCCore && swift test --skip AllSourcesSmoke --skip ScriptAcceptance --skip LLMKeyAcceptance 2>&1 | grep "Test run with"
+   # 期望 71 tests / 16 suites passed（全外网套件单跑：AllSourcesSmoke ~25min；
+   # 离线跑全量时外网用例失败属正常）
    ```
 3. **接手场景**：
-   - ✅ 阶段 4 已完成 → 下一步：用户手验 9.3（清单见 §5 阶段 4 小节）→ `openspec archive ios-news-ui` → 阶段 5 立案（聊天 + 日报 + Me 设置中心）。
+   - ✅ 阶段 4/5 已完成归档 → 下一阶段 6 课表：OpenSpec 立案 → 实施（参考 §8 阶段 6 小节）。
+   - iOS 端当前形态：五 tab 中四 tab 已转正（对话/日报/资讯/我的），仅课程表占位。
 4. **流程纪律**：非平凡改动走 OpenSpec（proposal→specs→design→tasks→用户评审→实现→archive）；用户偏好决策征询格式（决策点/候选/利弊表/推荐/追问）。
-5. **待用户确认项**：~~D8 删 runtime~~（已执行）；~~Tahoe 升级~~（✅ 26.6.2）；~~真实 LLM Key~~（联测已完成，Key 留存 `~/.openjwc-llm-key` 供阶段 5 聊天联调）；~~D9 Xcode 版本~~（✅ 26.6 已装并复验）。**无待办阻塞，阶段 4 开工。**
+5. **待用户确认项**：~~D8 删 runtime~~（已执行）；~~Tahoe 升级~~（✅ 26.6.2）；~~真实 LLM Key~~（联测完成，Key 留存 `~/.openjwc-llm-key`）；~~D9 Xcode 版本~~（✅ 26.6）；~~阶段 4/5~~（✅ 均已归档）。**无待办阻塞，阶段 6 课表可立案。**
 
 ### Xcode 选型记录（D9，✅ 2026-09-21 落定：方案 A，Xcode 26.6）
 
