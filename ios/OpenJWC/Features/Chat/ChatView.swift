@@ -68,9 +68,11 @@ struct ChatView: View {
                 // 流式中的临时气泡（完成即被观察刷新的终态行取代）
                 if chat.isGenerating {
                     streamingBubble
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
                 if let failed = chat.failedTurn {
                     RetryRow(failed: failed)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
                 Color.clear.frame(height: 4).id("bottom-anchor")
             }
@@ -98,16 +100,20 @@ struct ChatView: View {
         .overlay(alignment: .bottomTrailing) {
             if !followBottom {
                 Button {
-                    followBottom = true
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                        followBottom = true
+                    }
                     scrollPosition.scrollTo(edge: .bottom)
                 } label: {
                     Image(systemName: "arrow.down.circle.fill")
                         .font(.system(size: 30))
                         .foregroundStyle(.tint, .background)
                 }
+                .transition(.scale.combined(with: .opacity))
                 .padding(16)
             }
         }
+        .animation(.spring(response: 0.3, dampingFraction: 0.75), value: followBottom)
     }
 
     private var emptyState: some View {
@@ -241,9 +247,3 @@ struct RetryRow: View {
     }
 }
 
-/// 聊天气泡 Markdown 主题（紧凑版）。
-private extension Theme {
-    static var chat: Theme {
-        Theme.basic.text { FontSize(14) }
-    }
-}

@@ -15,12 +15,17 @@ struct ToolActivitySection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button {
-                expanded = !isExpanded
+                // 箭头旋转 + 项目展开均走 spring（D-13 灵动弹性）
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) {
+                    expanded = !isExpanded
+                }
             } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                    // 单一箭头旋转：向右 →(90°)→ 向下，收起反向转回
+                    Image(systemName: "chevron.right")
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
                     if running, let current = calls.last(where: { $0.status == "running" }) {
                         ProgressView().controlSize(.mini)
                         Text("正在\(AgentTools.displayName(current.name))…")
@@ -45,6 +50,7 @@ struct ToolActivitySection: View {
                 }
                 .padding(.leading, 14)
                 .padding(.bottom, 6)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .padding(.horizontal, 12)
@@ -85,11 +91,18 @@ struct ToolActivitySection: View {
                         Text(call.summary)
                             .font(.caption2)
                             .foregroundStyle(.secondary)
-                        Button("收起") { expandedSummaries.remove(id) }
-                            .font(.caption2)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                        Button("收起") {
+                            withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
+                                _ = expandedSummaries.remove(id)
+                            }
+                        }
+                        .font(.caption2)
                     } else {
                         Button {
-                            expandedSummaries.insert(id)
+                            withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
+                                _ = expandedSummaries.insert(id)
+                            }
                         } label: {
                             Text(call.summary)
                                 .font(.caption2)

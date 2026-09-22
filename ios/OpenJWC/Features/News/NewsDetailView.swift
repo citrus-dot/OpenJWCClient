@@ -64,7 +64,7 @@ struct NewsDetailView: View {
                     }
 
                     Markdown(notice.content ?? "_该资讯暂无正文_")
-                        .markdownTheme(theme)
+                        .markdownTheme(.reading)
                         .markdownImageProvider(
                             ViewerImageProvider { urlString in
                                 router.viewerImageURL = urlString
@@ -156,20 +156,5 @@ struct NewsDetailView: View {
                 }
             }
         }
-    }
-
-    /// D-3：MarkdownUI 主题（基础主题 + 代码块样式，随系统配色）。
-    private var theme: Theme {
-        Theme.basic
-            .text {
-                FontSize(15)
-            }
-            .codeBlock { configuration in
-                configuration.label
-                    .font(.callout.monospaced())
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
-            }
     }
 }

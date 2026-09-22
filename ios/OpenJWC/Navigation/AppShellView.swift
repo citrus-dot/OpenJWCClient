@@ -30,7 +30,9 @@ struct AppShellView: View {
                 .tabItem { Label("我的", systemImage: "person") }
                 .tag(AppTab.me)
         }
-        // 聊天页有底部输入栏，滚动收纳 tab bar 反而造成跳动（用户反馈）；全局不收纳
+        // tab bar 滚动收纳：仅对话页关闭（聊天有底部输入栏 + 自动滚动，收纳造成跳动），
+        // 其它 tab 保持 iOS 26 收纳行为；切 tab 时动态切换参数
+        .tabBarMinimizeBehaviorIfAvailable(minimized: router.selectedTab != .chat)
         // D-6：深链动作在首帧渲染后执行（NavigationStack 已挂载），冷/热启动一致
         .task(id: router.pendingDeepLink) {
             guard let link = router.pendingDeepLink else { return }
@@ -39,12 +41,12 @@ struct AppShellView: View {
     }
 }
 
-/// D-8：iOS 26 起启用 tab bar 滚动收纳玻璃动效；低版本为 no-op。
+/// D-8：iOS 26 起 tab bar 滚动收纳玻璃动效；minimized=false 的 tab 不触发。低版本 no-op。
 extension View {
     @ViewBuilder
-    func tabBarMinimizeBehaviorIfAvailable() -> some View {
+    func tabBarMinimizeBehaviorIfAvailable(minimized: Bool) -> some View {
         if #available(iOS 26.0, *) {
-            self.tabBarMinimizeBehavior(.onScrollDown)
+            self.tabBarMinimizeBehavior(minimized ? .onScrollDown : .never)
         } else {
             self
         }
