@@ -164,8 +164,16 @@ xcodebuild -scheme OpenJWC -destination 'platform=iOS Simulator,name=iPhone 17' 
 2. **SQLite REPLACE 级联陷阱**：父行 `INSERT OR REPLACE` = DELETE+INSERT，会触发 CASCADE 清空子行；iOS 端一律 upsert，单测保护。
 3. **双层 JSON.stringify 剥壳**：宿主模板 `JSON.stringify(fetchNotices())` × 脚本内 `return JSON.stringify(...)` 叠加，Swift 解码前需剥一层（对齐 Android kotlinx isLenient 行为）。
 4. **Swift 6 严格并发**：DAO/Provider/Agent 层全部 Sendable；@Sendable 闭包内可变累积用 Box/Accumulator 模式；`parseDayArg`/SwiftSoup `attr` 等 throws 需显式处理。
-5. **访问级别**：Agent/LLM 层当前为 **internal**（测试走 `@testable`）；**阶段 4 app 接线前需 public 化**。
+5. **访问级别**：~~Agent/LLM 层 internal~~（✅ 阶段 5a 已 public 化第二批：Agent/LLM/Chat/DailyReport 全链路）。
 6. Android 端文档错位提醒：`PLAN.md` 工具清单写 5 个实际 11 个、Room v11 实际 v14——以代码为准。
+
+## 6.5 待立案（用户拍板，2026-09-22 调研）
+
+### D11 — AI 角色设定配置（iOS 增强，Android 无此功能）
+**调研结论**：两端现状 = 硬编码单提示词（人设→守则→策略→工具→元数据五层，已与业界分层同构）。调研对象：NekoQA-10K/NekoLLM（微调路线，判否）、qwen3_psychology（三段分层提示词，安全层最高优先且与角色层物理隔离——采纳）、ChatGPT Custom Instructions/Traits、Claude Profile/Styles、SillyTavern 角色卡 V2、豆包/Coze 开场白+预置问题（**最小公共字段集 = 昵称/称谓 + 人设 + 语气 + 开场白 + 预置问题**——采纳）。知乎原文（NekoQA 论文）登录墙未直读。
+**范围（用户拍板）**：四件套（助手昵称/自称、对用户称谓、语气、开场白）+ 预设角色模板（默认猫娘=对齐 Android、教务顾问、简洁办事员）+ 每角色 2-3 条示例对话（few-shot）+ 自由文本人设补充（长度上限）+ 预置开场问题（点选即发）。
+**硬约束**：安全红线层与能力边界/工具规则**不可配置**（固定在最高优先级层）；开场白一次注入不常驻；角色描述控 token 小头。
+**工程落点**：UserSettings/新 PersonaStore 加档案字段；AgentLoop 组装改为「固定安全层 + 用户角色层 + 固定工具层 + 动态元数据」四段；UI 入口放 Me 设置中心。**状态：待 OpenSpec 立案**（排在 5b 完成后，可与阶段 7 并行）。
 
 ## 7. 目标架构（当前实际形态）
 
