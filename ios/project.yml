@@ -45,6 +45,13 @@ targets:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
+        # 阶段 7a（D-1/D-2）：后台任务注册白名单 + 后台模式
+        BGTaskSchedulerPermittedIdentifiers:
+          - org.openjwc.newsrefresh
+          - org.openjwc.dailyreport
+        UIBackgroundModes:
+          - fetch
+          - processing
     settings:
       base:
         GENERATE_INFOPLIST_FILE: false

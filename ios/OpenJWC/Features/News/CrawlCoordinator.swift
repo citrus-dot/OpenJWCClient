@@ -77,6 +77,9 @@ final class CrawlCoordinator {
             progress.currentSourceName = nil
             progress.currentFraction = 0
             progress.results.append(success ? summary : "失败：\(summary)")
+        case .newNotices:
+            // D-5：前台交互抓取「视为已读」——新资讯事件仅由后台任务消费者消费，此处忽略
+            break
         case .finished:
             progress.running = false
             progress.currentSourceName = nil

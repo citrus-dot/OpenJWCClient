@@ -1,6 +1,19 @@
 import Foundation
 import GRDB
 
+/// 新资讯摘要（通知载荷最小面，D-5 扩展点）：仅通知构造所需字段。
+public struct NoticeBrief: Equatable, Sendable {
+    public var id: String
+    public var title: String
+    public var label: String
+
+    public init(id: String, title: String, label: String) {
+        self.id = id
+        self.title = title
+        self.label = label
+    }
+}
+
 /// 抓取进度事件（对齐 Android NewsViewModel.CrawlProgress 的信息面）。
 public enum CrawlEvent: Sendable {
     case started(total: Int)
@@ -8,6 +21,9 @@ public enum CrawlEvent: Sendable {
     case sourceLog(sourceId: String, line: String)
     case sourceProgress(sourceId: String, fraction: Double, detail: String)
     case sourceFinished(sourceId: String, sourceName: String, summary: String, success: Bool)
+    /// 新资讯外传（D-5）：非 baseline 且有新增条目时逐源 yield；水位语义不变。
+    /// 前台交互抓取的消费者忽略此事件（「视为已读」），后台任务消费者聚合后发通知。
+    case newNotices(sourceId: String, notices: [NoticeBrief])
     /// 全部源处理完毕或被取消；被取消时剩余源不再抓取，已落库结果保留。
     case finished(cancelled: Bool)
 }
@@ -155,11 +171,16 @@ public actor NewsCrawlService {
             if !favoriteIds.isEmpty { try await noticeDao.markFavorites(ids: favoriteIds) }
             if !notifiedIds.isEmpty { try await noticeDao.markNotified(ids: notifiedIds) }
 
-            // 通知水位（对齐 settleNotifications，notify=false：交互抓取视为已读）
+            // 通知水位（对齐 settleNotifications，notify=false：交互抓取视为已读）；
+            // 非 baseline 且有新增时顺带外传新资讯摘要（D-5 扩展点，水位语义不变）
             if baseline {
                 try await noticeDao.markNotified(ids: records.map(\.id))
             } else if !newIds.isEmpty {
                 try await noticeDao.markNotified(ids: Array(newIds))
+                let briefs = records
+                    .filter { newIds.contains($0.id) }
+                    .map { NoticeBrief(id: $0.id, title: $0.title, label: $0.label) }
+                yield(.newNotices(sourceId: source.id, notices: briefs))
             }
 
             // 非致命问题照常入库，把摘要写进运行结果；失败源同样回写（对齐 Android catch 分支之外的成功路径）

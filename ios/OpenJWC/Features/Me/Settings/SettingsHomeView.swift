@@ -14,6 +14,11 @@ struct SettingsHomeView: View {
             }
             Section("资讯") {
                 NavigationLink {
+                    NotificationSettingsView()
+                } label: {
+                    Label("通知", systemImage: "bell")
+                }
+                NavigationLink {
                     NewsDisplaySettingsView()
                 } label: {
                     Label("显示设置", systemImage: "eye")

@@ -19,6 +19,8 @@ final class AppEnvironment {
     let dailyReport: DailyReportStore
     let motto: MottoStore
     let timetable: TimetableStore
+    let backgroundTasks: BackgroundTaskCoordinator
+    let notificationAuthorizer = NotificationAuthorizer()
 
     init() throws {
         let provider = try DatabaseProvider.shared()
@@ -47,6 +49,14 @@ final class AppEnvironment {
         self.dailyReport = DailyReportStore(db: db, service: reportService)
         self.motto = MottoStore(settings: settings)
         self.timetable = TimetableStore(db: db, settings: settings)
+        self.backgroundTasks = BackgroundTaskCoordinator(
+            service: crawlService,
+            dailyReportService: reportService,
+            dailyReportStore: dailyReport,
+            settings: settings,
+            sourceDao: sourceDao,
+            reminders: CourseReminderScheduler(settings: settings, timetable: timetable)
+        )
     }
 
     /// 启动路径：内置源播种（幂等；删除过的装回且默认不订阅）。
@@ -58,6 +68,9 @@ final class AppEnvironment {
         }
         // 注：6a 的 DEBUG 魔棒按钮与 -startTimetable 示例注入已随 6b（编辑器/导入到位）移除。
         migrateLegacyLlmConfig()
+        // 阶段 7a：全量同步（两 BGTask 提交/取消 + 课程提醒重排）+ 日报前台补偿
+        await backgroundTasks.compensateDailyReportIfMissed()
+        await backgroundTasks.syncAll()
     }
 
     /// 旧单配置（provider_config + Key 按 providerId）→ 配置档案（幂等）。

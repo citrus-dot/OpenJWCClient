@@ -6,6 +6,7 @@ import SwiftUI
 struct AppShellView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(AppRouter.self) private var router
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         @Bindable var router = router
@@ -45,6 +46,28 @@ struct AppShellView: View {
         .task(id: router.pendingDeepLink) {
             guard let link = router.pendingDeepLink else { return }
             router.handleDeepLink(link)
+        }
+        // 阶段 7a 触发链（D-8 等价表）：前台提交/续排 + Timer 启停
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .active:
+                Task {
+                    await environment.backgroundTasks.syncAll()
+                    environment.backgroundTasks.startForegroundTimer()
+                }
+            case .background, .inactive:
+                environment.backgroundTasks.stopForegroundTimer()
+            @unknown default:
+                break
+            }
+        }
+        // 订阅集合变化 → 抓取任务重排（对齐 NavContainer 订阅链）
+        .onChange(of: environment.reactive.sources) { _, _ in
+            Task { await environment.backgroundTasks.submitNewsTask() }
+        }
+        // 当前表/课程变化 → 课程提醒全量重排（对齐 NavContainer (table.id, courses.size) 链）
+        .onChange(of: environment.timetable.snapshot) { _, _ in
+            Task { await environment.backgroundTasks.reminders.reschedule() }
         }
     }
 }

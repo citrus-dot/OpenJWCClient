@@ -15,6 +15,9 @@ struct OpenJWCApp: App {
             fatalError("数据库初始化失败: \(error)")
         }
         UNUserNotificationCenter.current().delegate = delegate
+        // 阶段 7a（D-1）：BGTask 注册必须在启动完成前（先于 finishLaunching 返回）；
+        // 闭包定义于 nonisolated static 上下文（红线 1），此处只传递协调器引用
+        BackgroundTaskCoordinator.registerHandlers(coordinator: environment.backgroundTasks)
     }
 
     var body: some Scene {

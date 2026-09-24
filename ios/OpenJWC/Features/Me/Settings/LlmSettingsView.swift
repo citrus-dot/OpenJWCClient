@@ -152,6 +152,8 @@ struct LlmSettingsView: View {
                 var s = environment.settings.loadUserSettings()
                 s.dailyReportEnabled = enabled
                 environment.settings.saveUserSettings(s)
+                // 阶段 7a：变更即同步日报后台任务（开 → 提交；关 → 取消）
+                Task { await environment.backgroundTasks.submitDailyReportTask() }
             }
         ))
         Picker("生成时间", selection: Binding(
@@ -160,6 +162,8 @@ struct LlmSettingsView: View {
                 var s = environment.settings.loadUserSettings()
                 s.dailyReportTime = time
                 environment.settings.saveUserSettings(s)
+                // 阶段 7a：时刻变更 → 以新时刻重提交（earliestBeginDate 更新）
+                Task { await environment.backgroundTasks.submitDailyReportTask() }
             }
         )) {
             ForEach(Self.dailyReportTimes, id: \.self) { time in
