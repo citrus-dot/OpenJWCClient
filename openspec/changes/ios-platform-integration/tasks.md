@@ -11,6 +11,7 @@
 - [ ] 2.1 `WidgetSnapshot` 模型（schemaVersion + 表元数据 + 节次起止分钟 + 全部课程含 color ARGB）+ JSON 编解码（读侧宽容：缺字段/未知版本 → 空态）
 - [ ] 2.2 原子写辅助（临时文件 + rename）+ 快照文件路径约定（App Group 容器 `timetable-snapshot.json`）
 - [ ] 2.3 单测：编码→解码回环、宽容读三态（缺字段/未知版本/文件不存在）、原子写
+- [ ] 2.4 `WidgetImageProcessor.downsampleAndEncode(jpeg:maxDimension:quality:)` core 纯函数（ImageIO + CGImageDestination；产物 ≤ 数百 KB）+ 单测（尺寸上限/体积上限/JPEG 完整性）【红线 3】
 
 ## 3. core：课程提醒计划纯函数【7a】（spec：课程提醒通知；design D-4）
 - [ ] 3.1 `CourseReminderPlan`：输入课表快照 + now + 14 天窗口 → [计划(稳定 id, fireDate=上课时刻−10 分钟, name/timeText/classroom/teacher)]；weekRule 命中、过去/超窗跳过
@@ -33,14 +34,15 @@
 - [ ] 6.2 关闭开关 / 无课 / 权限被拒 → 清空本类待发
 - [ ] 6.3 接入触发链：App 启动 + `courseReminderEnabled` 变化 + 当前表/课程变化（对齐 `NavContainer.kt:227-236` 语义）
 
-## 7. app：后台任务协调器【7a】（spec：后台资讯抓取/日报定时生成；design D-1/D-2）
-- [ ] 7.1 `OpenJWCApp.init` 注册两类 handler（`org.openjwc.newsrefresh` BGAppRefresh / `org.openjwc.dailyreport` BGProcessing requiresNetworkConnectivity、requiresExternalPower=false）
+## 7. app：后台任务协调器【7a】（spec：后台资讯抓取/日报定时生成；design D-1/D-2/D-13）
+- [ ] 7.1 `OpenJWCApp.init` 注册两类 handler（`org.openjwc.newsrefresh` BGAppRefresh / `org.openjwc.dailyreport` BGProcessing requiresNetworkConnectivity、requiresExternalPower=false）；**注册闭包与 expirationHandler 闭包定义于 `nonisolated static` 上下文（不继承 @MainActor），闭包内只 `Task { @MainActor in ... }` 跳主线程、不触碰任何 @MainActor 状态含 Logger**（Swift 6 隔离红线 1）
 - [ ] 7.2 Info.plist：`BGTaskSchedulerPermittedIdentifiers` + `UIBackgroundModes: [fetch, processing]`
-- [ ] 7.3 资讯任务运行体：全量抓取（复用 `NewsCrawlService` 防重入闸）→ 收集 newNotices → 开关判定 → NewsNotifier → 续排；expirationHandler 取消 + 续排；无订阅/通知关闭 → cancel
-- [ ] 7.4 日报任务运行体：昨日 `DailyReportService.generate(day:)` → 续排次日时刻；expiration 取消 + 续排
+- [ ] 7.3 资讯任务运行体：全量抓取（复用 `NewsCrawlService` 防重入闸）→ 收集 newNotices → 开关判定 → NewsNotifier → 续排；expirationHandler 取消 + 续排；无订阅/通知关闭 → cancel；**`submit` 三错误（.notPermitted/.tooManyPendingTaskRequests/.unavailable）静默吞记日志不崩溃**；**所有路径（成功/失败/异常/expiration）恰好一次 `setTaskCompleted(success:)`**
+- [ ] 7.4 日报任务运行体：昨日 `DailyReportService.generate(day:)` → 续排次日时刻；expiration 取消 + 续排；**所有路径 `setTaskCompleted` 恰好一次**
 - [ ] 7.5 前台补偿：bootstrap 检查「今日已过 dailyReportTime 且昨日非 COMPLETED」→ 前台生成（幂等由 generate 守卫）
 - [ ] 7.6 前台 Timer：scenePhase active 期间按 `newsCheckIntervalMinutes` 驱动抓取（共用防重入闸）
 - [ ] 7.7 `syncAll()`：设置五字段变化 → 两任务提交/取消 + 提醒重排（对齐 `MainActivity.kt:49-60`）
+- [ ] 7.8 手验：后台强制触发（LLDB `_simulateLaunchForTaskWithIdentifier`）不崩溃、expiration 续排、force-quit 后重启恢复
 
 ## 8. app：Me 通知设置页 + 日报设置分组【7a】（spec：通知设置页/日报设置分组/通知权限申请；design D-3/D-8）
 - [ ] 8.1 `SettingsHomeView` 增「通知」入口；`NotificationSettingsView`：新闻分组（开关 + 间隔 Picker 15/30/60/180/360，关时间隔置灰）+ 课程提醒开关 + 权限状态行（被拒「去系统设置」）
@@ -54,7 +56,7 @@
 
 ## 10. widget：TimelineProvider + 三尺寸视图【7b】（spec：课程小组件/小组件时间线/小组件尺寸族；design D-6）
 - [ ] 10.1 `CourseTimelineProvider`：读快照 JSON → `WidgetTimelineBuilder` → Timeline(.atEnd)；缺失/解码失败 → 空态 entry
-- [ ] 10.2 Medium 基准布局：头部（icon + 今天/明天·星期 + 第 N 周）+ 最多 2 门课程卡（时间列 + 色条 + 课名 + 第 X-Y 节|教室|教师 + 约 N 分钟倒计时）
+- [ ] 10.2 Medium 基准布局：头部（icon + 今天/明天·星期 + 第 N 周）+ 最多 2 门课程卡（时间列 + 色条 + 课名 + 第 X-Y 节|教室|教师 + 约 N 分钟倒计时）；**`.containerBackground(for: .widget)` 必用（红线 2）；有背景图时 `containerBackgroundRemovable(false)`、无背景图时默认可移除；`.contentMarginsDisabled()` + 自管内边距；课程色条/倒计时可 `.widgetAccentable()`（可选增强）**
 - [ ] 10.3 Small（头部 + 精简行）/ Large（Medium 同款 + 完整列表）两尺寸
 - [ ] 10.4 `widgetURL` → 主 app `onOpenURL` → `AppRouter` 深链课表 tab
 - [ ] 10.5 `WidgetSettingsReader`：group defaults 两键 + 背景图读取（路径缺文件回退纯色）
@@ -65,7 +67,7 @@
 - [ ] 11.3 小组件设置变更（背景/不透明度/移除背景）→ group defaults 写入 + reload
 
 ## 12. app：Me 小组件设置页【7b】（spec：小组件设置页；design D-8）
-- [ ] 12.1 `SettingsHomeView` 增「小组件」入口；`WidgetSettingsView`：静态示例预览（实时反映背景/不透明度）+ 选择图片（PhotosPicker → 存 group 容器）+ 移除背景（红字，有背景时显示）+ 不透明度滑块（0-100% 显示 / 0...1 存储，默认 0.5）
+- [ ] 12.1 `SettingsHomeView` 增「小组件」入口；`WidgetSettingsView`：静态示例预览（实时反映背景/不透明度）+ 选择图片（PhotosPicker → **降采样 ≤1280px + 重编码 JPEG quality≈0.75（红线 3，`WidgetImageProcessor` core 纯函数）**存 group 容器）+ 移除背景（红字，有背景时显示）+ 不透明度滑块（0-100% 显示 / 0...1 存储，默认 0.5）
 - [ ] 12.2 任一变更写入 group defaults 并触发小组件刷新（11.3 链路）
 
 ## 13. 手验与归档

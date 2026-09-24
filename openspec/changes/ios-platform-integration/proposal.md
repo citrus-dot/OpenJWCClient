@@ -50,13 +50,22 @@ iOS 与 Android 存在**产品级平台语义差异**（BGTaskScheduler 不保�
 - **锁屏/灵动岛 Live Activity**（下课倒计时实时刷新）→ iOS 增强方向，本案不含（时间线 entry 的静态倒计时已覆盖核心场景），阶段 8 或另案评估
 - **Widget 交互式配置**（`AppIntent` 参数化：按表切换/显示天数选择）→ Android 端无对应配置（仅背景/透明度），对齐基线不含
 - **iOS 通知扩展（Notification Service Extension）富媒体** → Android 端无对应，裁剪
+- **silent push 服务端频率增强** → 范围外（需独立服务器，违背单体 iOS App 架构边界）；NetNewsWire issue #2616 实证 BGTask 频率不足时需服务端 silent push 分组唤醒（日 4 次），本案接受客户端 BGTask + 前台 Timer 频率局限，列为未来增强（同阶段 6 WebView 升级先例），不纳入本案
 - xcstrings 5 语言 / 三层图标 / Liquid Glass 全覆盖复查 / Dynamic Type → 阶段 8 打磨
 - 深层动画定制（通知横幅自定义呈现）→ 系统接管，不在范围
+
+## 生产级增补（2026-09-24 调研，详见 `research-production-notes.md`）
+对照 Apple 官方文档 + NetNewsWire（7.8k★ RSS reader，与本案权重合度最高）+ SwiftLee/Use Your Loaf 等主流实践，固化三条生产级红线（spec/design/tasks 已同步增补）：
+1. **Swift 6 严格并发崩溃陷阱**：`AppEnvironment` 是 `@MainActor`；若在其中调 `BGTaskScheduler.register { ... }`，闭包继承 `@MainActor` 隔离 → 系统在后台队列调用 → Swift 6 运行时在闭包入口 `EXC_BREAKPOINT`，**早于** `Task { @MainActor in }` 执行；编译零警告、测试全绿却在后台运行时崩溃（HackerNoon Amana 实录）。**修复**：launchHandler/expirationHandler 闭包定义于 `nonisolated` 上下文，闭包内只 `Task { @MainActor in }` 跳转、不触碰任何 `@MainActor` 状态（含 Logger）。
+2. **WidgetKit `containerBackground(for: .widget)` iOS 17+ 必用**：本案 deploymentTarget 18.0；不采用 → StandBy/iPad 锁屏渲染异常 + 开发期预览报「please adopt containerBackground API」。有用户背景图时 `containerBackgroundRemovable(false)`（背景始终在，对齐 Android）；无背景图时默认可移除。
+3. **背景图降采样重编码**：widget extension 进程内存上限 ~30MB，原图直接存会导致解码吃内存 + 加载慢；选图时降采样（≤1280px）+ 重编码 JPEG（quality ≈0.75，产物 ≤ 数百 KB）再存 App Group 容器（Android `saveBackgroundImage` 仅 `copyTo` 原图，iOS 此处优于上游）。
+
+**调研背书**：snapshot JSON 方案（D-7）由 NetNewsWire `WidgetDataEncoder` 生产实证（不访问主 app DB + 两时机写入 + reloadAllTimelines + widgetURL 深链，逐项对齐本案）；Use Your Loaf 直接建议「widget 不必共享 DB，提取 JSON 即可」；SwiftLee 证实共享 Core Data 需 Persistent History Tracking + Darwin Notification 复杂度高——背书本案否决共享 DB 方案 a。
 
 ## Impact
 - **core**：`NewsCrawlService` 扩展 newNotices 外传（约 +40 行，含单测）；新增课表快照导出纯函数（JSON 编解码，约 100 行，单测锁定）——既有 98 测试必须保持绿，新增约 10-15 个
 - **app**：新增 `Background/`（协调器）、`Notifications/`（两 notifier + 排程器）、设置两页 + LlmSettings 日报分组、`OpenJWCApp` BGTask 注册（约 10-14 文件）
 - **新 target**：`OpenJWCWidget` appex（TimelineProvider + 三尺寸视图 + 快照读取，约 6-8 文件）+ project.yml target/App Group 配置 + 主 app `onOpenURL` 接线
 - **基础设施**：App Group capability（模拟器免签可用；真机侧载需签名支持，阶段 8 免费签名侧载一并处理）
-- **风险**：① BGTaskScheduler 模拟器验证依赖私有 API（真机行为不可完全复现，验收口径以模拟器+前台补偿为准）；② 64 条 pending 上限与排程窗口的核算需实现期实测（design D-4 已给保护策略）；③ App Group 数据迁移（user_settings suite 若改挂 App Group 需一次性搬移——design D-7 给了独立存储的替代方案）
+- **风险**：① BGTaskScheduler 模拟器验证依赖私有 API（真机行为不可完全复现，验收口径以模拟器+前台补偿为准）；② 64 条 pending 上限与排程窗口的核算需实现期实测（design D-4 已给保护策略）；③ App Group 数据迁移（user_settings suite 若改挂 App Group 需一次性搬移——design D-7 给了独立存储的替代方案）；④ **Swift 6 闭包隔离崩溃陷阱**（见「生产级增补」红线 1，编译零警告却后台崩溃，须 nonisolated 闭包模板 + 后台触发手验覆盖）；⑤ **containerBackground 遗漏**（iOS 17+ 必用，遗漏致 StandBy/锁屏渲染异常，已写入 spec SHALL）；⑥ widget 背景图内存（须降采样重编码，已写入 spec SHALL）
 - **测试基线**：`swift test --disable-sandbox --skip AllSourcesSmoke --skip ScriptAcceptance --skip LLMKeyAcceptance` 期望 98/19 → 全绿保持 + 新增

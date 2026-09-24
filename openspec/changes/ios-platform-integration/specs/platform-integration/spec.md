@@ -5,7 +5,7 @@
 ## ADDED Requirements
 
 ### Requirement: 后台资讯抓取
-App SHALL 在存在已订阅数据源且新闻通知开启时，通过 `BGTaskScheduler`（`BGAppRefreshTaskRequest`，identifier `org.openjwc.newsrefresh`）周期性后台抓取全部订阅源：请求的 `earliestBeginDate` = `newsCheckIntervalMinutes` 分钟（设置项 15/30/60/180/360）。每次任务运行 SHALL：执行抓取（复用 `NewsCrawlService` 防重入闸）→ 对新增条目（水位语义：非 baseline 抓取的新插入且未通知条目）发送新闻通知（通知开关关闭时仅更新缓存不发通知，对齐 Android `settleNotifications(notify:)`）→ 任务结束时重新提交下一次请求。无订阅源或通知关闭时 SHALL 取消该后台任务；设置变化时在前台重新提交。App 前台期间 SHALL 以应用内 Timer 按同一间隔补充驱动抓取（对齐 Android WorkManager 前台照跑语义），与后台任务共用防重入闸。
+App SHALL 在存在已订阅数据源且新闻通知开启时，通过 `BGTaskScheduler`（`BGAppRefreshTaskRequest`，identifier `org.openjwc.newsrefresh`）周期性后台抓取全部订阅源：请求的 `earliestBeginDate` = `newsCheckIntervalMinutes` 分钟（设置项 15/30/60/180/360）。每次任务运行 SHALL：执行抓取（复用 `NewsCrawlService` 防重入闸）→ 对新增条目（水位语义：非 baseline 抓取的新插入且未通知条目）发送新闻通知（通知开关关闭时仅更新缓存不发通知，对齐 Android `settleNotifications(notify:)`）→ 任务结束时重新提交下一次请求。无订阅源或通知关闭时 SHALL 取消该后台任务；设置变化时在前台重新提交。App 前台期间 SHALL 以应用内 Timer 按同一间隔补充驱动抓取（对齐 Android WorkManager 前台照跑语义），与后台任务共用防重入闸。`BGTaskScheduler.shared.submit` 抛出的 `.notPermitted`（用户在系统设置关闭后台 App 刷新）/`.tooManyPendingTaskRequests`/`.unavailable`（模拟器旧版本）错误 SHALL 静默吞并记日志，**不崩溃、不向用户报错**（前台 Timer + 启动抓取兜底）。任务 handler 在**所有路径**（成功/失败/异常/expiration）SHALL 恰好一次调用 `task.setTaskCompleted(success:)`，否则系统降权后续调度预算。**Swift 6 隔离约束**：launchHandler 与 expirationHandler 闭包 SHALL 定义在 `nonisolated` 上下文（不继承 `@MainActor` 隔离），闭包内只做 `Task { @MainActor in ... }` 跳主线程、不直接触碰任何 `@MainActor` 状态（含 Logger）——否则 Swift 6 运行时在闭包入口处 `EXC_BREAKPOINT` 崩溃，早于跳转 Task 执行（参见 `research-production-notes.md` 派别 A-2 实录）。
 **平台语义差异（产品口径）**：iOS `BGTaskScheduler` 的 `earliestBeginDate` 是最早可能时刻而非保证时刻，系统按电量与使用习惯合并唤醒——实际间隔可能大于设定值，用户可见文案（设置页描述）SHALL 如实说明，不承诺准 15 分钟级轮询。
 
 #### Scenario: 后台抓取发现新资讯并发通知
@@ -21,7 +21,7 @@ App SHALL 在存在已订阅数据源且新闻通知开启时，通过 `BGTaskSc
 - **THEN** 应用内 Timer 触发一次抓取；若后台任务或用户下拉正在抓取则跳过（防重入）
 
 ### Requirement: 日报定时生成
-App SHALL 在日报开启（`dailyReportEnabled`）时，通过 `BGTaskScheduler`（`BGProcessingTaskRequest`，identifier `org.openjwc.dailyreport`，`requiresNetworkConnectivity = true`）尽力在每日 `dailyReportTime`（HH:mm）后台生成**昨日**日报（复用 `DailyReportService.generate(day:)`；配置类失败如缺 Key 不重试，原因已落库页面可见——对齐 Android `DailyReportWorker` 的 CONFIG_RELATED 分支）。因 iOS 不保证准点后台执行，App SHALL 在**前台启动时补偿检查**：今日已过 `dailyReportTime` 且昨日日报缺失（状态非 COMPLETED）→ 前台补触发生成。日报关闭时 SHALL 取消该后台任务。既有手动生成入口（日报 tab）保持不变。
+App SHALL 在日报开启（`dailyReportEnabled`）时，通过 `BGTaskScheduler`（`BGProcessingTaskRequest`，identifier `org.openjwc.dailyreport`，`requiresNetworkConnectivity = true`）尽力在每日 `dailyReportTime`（HH:mm）后台生成**昨日**日报（复用 `DailyReportService.generate(day:)`；配置类失败如缺 Key 不重试，原因已落库页面可见——对齐 Android `DailyReportWorker` 的 CONFIG_RELATED 分支）。因 iOS 不保证准点后台执行，App SHALL 在**前台启动时补偿检查**：今日已过 `dailyReportTime` 且昨日日报缺失（状态非 COMPLETED）→ 前台补触发生成。日报关闭时 SHALL 取消该后台任务。既有手动生成入口（日报 tab）保持不变。Swift 6 隔离约束（同后台资讯抓取）：launchHandler/expirationHandler 闭包 SHALL 定义于 `nonisolated` 上下文，`setTaskCompleted(success:)` SHALL 在所有路径恰好一次。
 **平台语义差异（产品口径）**：后台尽力而为 + 前台补偿是 Android 24h 周期定时任务的 iOS 替代——错过设定时刻的日报在下次打开 App 时补上，文案 SHALL 说明此语义。
 
 #### Scenario: 前台补偿生成
@@ -73,7 +73,7 @@ App SHALL 在日报开启（`dailyReportEnabled`）时，通过 `BGTaskScheduler
 - **THEN** 不再弹系统弹窗，显示「去系统设置」引导行
 
 ### Requirement: 课程小组件（systemMedium）
-SHALL 提供 WidgetKit 课程小组件（`OpenJWCWidget` extension，App Group `group.org.openjwc.shared`）：systemMedium 布局对齐 Android 4×2——头部（App 图标 + 「今天/明天 · 星期」 + 右侧「第 N 周」）+ 最多 2 门课程卡片（左侧起止时间列 + 课程色竖条 + 课程名 + 「第 X-Y 节 | 教室 | 教师」元数据行 + 进行中课程显示「约 N 分钟」下课倒计时，N 为向上取整剩余分钟）。显示状态语义直译 Android `WidgetModels`：当前时刻 ≥ max(17:00, 今日末课结束) 时切换为明天预告（明天无课显示「明天没有课」）；今天剩余课程过滤已结束课程、刚结束课程保留至下节课开始；无课显示「今天没有课」；全部结束显示「今日课程已结束」。点击小组件任意区域 SHALL 经 `widgetURL` → `onOpenURL` → 深链进入课表 tab。
+SHALL 提供 WidgetKit 课程小组件（`OpenJWCWidget` extension，App Group `group.org.openjwc.shared`）：systemMedium 布局对齐 Android 4×2——头部（App 图标 + 「今天/明天 · 星期」 + 右侧「第 N 周」）+ 最多 2 门课程卡片（左侧起止时间列 + 课程色竖条 + 课程名 + 「第 X-Y 节 | 教室 | 教师」元数据行 + 进行中课程显示「约 N 分钟」下课倒计时，N 为向上取整剩余分钟）。显示状态语义直译 Android `WidgetModels`：当前时刻 ≥ max(17:00, 今日末课结束) 时切换为明天预告（明天无课显示「明天没有课」）；今天剩余课程过滤已结束课程、刚结束课程保留至下节课开始；无课显示「今天没有课」；全部结束显示「今日课程已结束」。点击小组件任意区域 SHALL 经 `widgetURL` → `onOpenURL` → 深链进入课表 tab。小组件视图 SHALL 采用 `.containerBackground(for: .widget) { ... }` 修饰符标记背景层（iOS 17+ 必用，否则 StandBy/iPad 锁屏渲染异常 + 开发期预览画布报「please adopt containerBackground API」覆盖警告，参见 `research-production-notes.md` 派别 B-1）；无背景图时背景可移除（默认 `containerBackgroundRemovable(true)`），有用户背景图时 SHALL 置 `containerBackgroundRemovable(false)`（背景始终可见，放弃 StandBy/iPad 锁屏资格——对齐 Android 背景始终在的行为）。布局 SHALL 调用 `.contentMarginsDisabled()` + 自管内边距以对齐 Android 紧凑课程卡布局。
 
 #### Scenario: 显示今天剩余课程
 - **WHEN** 今日 10:00、8:00-9:35 的课已结束、10:00-11:35 与 14:00 的课未上
@@ -129,7 +129,7 @@ Me 设置 SHALL 新增「通知」入口，页含：新闻通知分组（开关 
 - **THEN** 未来 14 天窗口内的课程提醒立即注册
 
 ### Requirement: 小组件设置页
-Me 设置 SHALL 新增「小组件」入口，页含：顶部实时预览（静态示例数据 + 用户所选背景与不透明度实时反映）+ 背景图片分组（选择图片（存 App Group 容器文件）/ 移除背景（有背景时显示，红字））+ 背景不透明度分组（0-100% 滑块，默认 50%，对齐 Android 128/255）。任一变更 SHALL 写入 App Group UserDefaults 并触发小组件刷新。
+Me 设置 SHALL 新增「小组件」入口，页含：顶部实时预览（静态示例数据 + 用户所选背景与不透明度实时反映）+ 背景图片分组（选择图片（存 App Group 容器文件）/ 移除背景（有背景时显示，红字））+ 背景不透明度分组（0-100% 滑块，默认 50%，对齐 Android 128/255）。任一变更 SHALL 写入 App Group UserDefaults 并触发小组件刷新。选择背景图时 SHALL **降采样 + 重编码 JPEG**（目标边长 ≤ 1280px、quality ≈ 0.75、产物 ≤ 数百 KB）后再存 App Group 容器——widget extension 进程内存上限约 30MB，直接存原图会导致渲染时解码吃内存 + 加载慢（参见 `research-production-notes.md` 派别 B-5；Android `WidgetSettingsScreen.saveBackgroundImage` 仅 `copyTo` 原图，iOS 此处优于上游）。
 
 #### Scenario: 选背景图即时反映
 - **WHEN** 用户选择一张背景图

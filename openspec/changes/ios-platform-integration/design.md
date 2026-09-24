@@ -196,3 +196,44 @@ project.yml 增量：`OpenJWCWidget` target；主 app Info.plist 增 `BGTaskSche
 - **7a = 通知 + 后台任务**（组 1 + 3 + 5-8 + 手验）：core newNotices/CourseReminderPlan → NewsNotifier + 权限 + CourseReminderScheduler → BackgroundTaskCoordinator（两 BGTask + 前台 Timer + 日报补偿）→ 通知设置页 + LlmSettings 日报分组 → 触发链（设置/订阅/课表变化）。验收点：新闻通知点击深链端到端、课程提醒 10 分钟横幅、后台抓取（模拟器等待/强制触发）、错过日报前台补偿。
 - **7b = Widget + 小组件设置**（组 2 + 4 + 9-12 + 手验）：core 快照/显示状态/时间线 → widget target 基建 → 三尺寸视图 + TimelineProvider → 快照导出接线（TimetableStore 变化 → export + reload）→ 小组件设置页。验收点：三尺寸渲染、改课即时刷新、背景图/不透明度生效、分钟倒计时推进、切明天。
 - 组 13 归档收尾（全量测试 + xcodebuild + roadmap 更新 + archive）。
+
+## D-13 生产级增补（2026-09-24 调研补遗，详见 `research-production-notes.md`）
+
+对照 Apple 官方 + NetNewsWire（7.8k★ RSS reader，权重合度最高实证）+ SwiftLee/Use Your Loaf，固化三条原 design 未覆盖的生产级红线（spec/tasks 已同步）：
+
+**红线 1 — Swift 6 严格并发闭包隔离陷阱**（HackerNoon Amana 实录 + calcopilot 验证）：
+`AppEnvironment` 是 `@MainActor @Observable`（`AppEnvironment.swift:8-10`）；`BGTaskScheduler.shared.register(forTaskWithIdentifier:using:launchHandler:)` 的 launchHandler 与 `task.expirationHandler` 都由系统在**后台队列**调用。若闭包定义在 `@MainActor` 方法内 → 闭包继承 `@MainActor` 隔离 → Swift 6 运行时在闭包**入口处** `_swift_task_checkIsolatedSwift` 触发 `dispatch_assert_queue_fail` → `EXC_BREAKPOINT`，**早于**闭包内 `Task { @MainActor in ... }` 执行；编译零警告、单测全绿、却后台崩溃。
+
+**修复模板**（calcopilot 推荐，本案采用）：
+```swift
+// nonisolated static 上下文定义闭包 → 不继承 @MainActor
+nonisolated static func registerHandlers(coordinator: BackgroundTaskCoordinator) {
+    BGTaskScheduler.shared.register(
+        forTaskWithIdentifier: "org.openjwc.newsrefresh", using: nil
+    ) { task in
+        // 闭包内只做一件事：跳主线程。不得触碰任何 @MainActor 状态（含 Logger）。
+        Task { @MainActor in coordinator.handleNewsRefresh(task as! BGAppRefreshTask) }
+    }
+}
+// expirationHandler 同理：
+nonisolated static func setExpiration(for task: BGTask, coordinator: BackgroundTaskCoordinator) {
+    task.expirationHandler = {
+        Task { @MainActor in coordinator.handleExpiration(task) }
+    }
+}
+```
+落点：`BackgroundTaskCoordinator` 的注册与 expiration 设值走 nonisolated static；`OpenJWCApp.init` 调 `Self.registerHandlers(coordinator:)`（init 是非 @MainActor 隔离的 SwiftUI App 入口，等价 didFinishLaunching 时机）。
+
+**红线 2 — WidgetKit `containerBackground(for: .widget)` iOS 17+ 必用**（Apple 官方 + WWDC23-10027）：
+deploymentTarget 18.0 → widget 视图 SHALL 用 `.containerBackground(for: .widget) { 背景 }` 标记背景层；否则开发期预览报「please adopt containerBackground API」覆盖警告、StandBy/iPad 锁屏/vibrant 模式渲染异常。双态策略：
+- 无背景图：`containerBackground(for: .widget) { Color(底色) }`，默认 `containerBackgroundRemovable(true)`，StandBy 显示无背景版；
+- 有用户背景图：`.containerBackgroundRemovable(false)`（背景始终可见，放弃 StandBy/iPad 锁屏资格——对齐 Android 背景始终在的行为）。
+布局 `.contentMarginsDisabled()` + 自管内边距（对齐 Android 紧凑课程卡）；可选 `.widgetAccentable()` 标记课程色条/倒计时文本以在 vibrant/锁屏保持关键色可见（实现期可选增强，不强制）。
+
+**红线 3 — 背景图降采样重编码**（widget extension 内存 ~30MB 上限）：
+用户相册原图可能数 MB-数十 MB；直接存原图 → widget 渲染解码吃内存 + 加载慢。生产做法 = 选图时降采样（目标边长 ≤1280px）+ 重编码 JPEG（quality ≈0.75，产物 ≤数百 KB）再存 App Group 容器。落点：新增 `WidgetImageProcessor`（core 纯函数：`downsampleAndEncode(jpeg:maxDimension:quality:)`，对齐 `ImageIO` + `CGImageDestination` 链；单测锁定产物体积上限与尺寸约束）。Android `WidgetSettingsScreen.saveBackgroundImage`（:370-383）仅 `copyTo` 原图——iOS 此处优于上游。
+
+**调研背书小结**：
+- snapshot JSON 方案（D-7）= NetNewsWire `WidgetDataEncoder` 生产实证（不访问主 app DB + 两时机写入 + reloadAllTimelines + widgetURL 深链，逐项对齐本案 D-7/D-8/既有链路）；Use Your Loaf 直接建议「widget 不必共享 DB，提取 JSON 即可」；SwiftLee 证实共享 Core Data 需 Persistent History Tracking + Darwin Notification 复杂度高 → 背书 D-7 否决方案 a。
+- BGTask 生产模式（A-1~A-6）：register 时机 ✓（OpenJWCApp.init）、submit 三错误静默 ✓（前台兜底）、setTaskCompleted 全路径恰好一次 ✓（水位机制 = checkpoint，幂等）、force-quit 停 → 启动全量重排覆盖 ✓。
+- silent push 频率增强（NetNewsWire issue #2616）列为未来增强（同阶段 6 WebView 升级先例），不纳入本案。
