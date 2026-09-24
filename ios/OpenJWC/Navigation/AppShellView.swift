@@ -65,9 +65,22 @@ struct AppShellView: View {
         .onChange(of: environment.reactive.sources) { _, _ in
             Task { await environment.backgroundTasks.submitNewsTask() }
         }
-        // 当前表/课程变化 → 课程提醒全量重排（对齐 NavContainer (table.id, courses.size) 链）
+        // 当前表/课程变化 → 课程提醒全量重排 + 小组件快照导出（对齐 NavContainer (table.id, courses.size) 链）
         .onChange(of: environment.timetable.snapshot) { _, _ in
-            Task { await environment.backgroundTasks.reminders.reschedule() }
+            Task {
+                await WidgetSnapshotWriter.export(db: environment.db)
+                await environment.backgroundTasks.reminders.reschedule()
+            }
+        }
+        // 小组件 widgetURL 深链（openjwc://timetable → 课表 tab）
+        .onOpenURL { url in
+            guard url.scheme == "openjwc" else { return }
+            switch url.host {
+            case "timetable":
+                router.handleDeepLink(DeepLink(destination: AppRouter.destTimetable, newsId: nil))
+            default:
+                break
+            }
         }
     }
 }

@@ -1,6 +1,21 @@
 import Foundation
 import GRDB
 
+/// App Group 共享约定（design D-7）：主 app 写、小组件读的两键 + 容器标识。
+/// user_settings 不迁移（D-7 决策）——小组件只读这里的独立键。
+public enum WidgetSharedKeys {
+    public static let appGroupId = "group.org.openjwc.shared"
+    /// 相对 App Group 容器的背景图路径（空 = 无背景）。
+    public static let backgroundPathKey = "widget.backgroundPath"
+    /// 背景不透明度 0...1（默认 0.5 = Android 128/255 换算）。
+    public static let backgroundOpacityKey = "widget.backgroundOpacity"
+    public static let defaultOpacity = 0.5
+    /// 背景图文件名（存容器根）。
+    public static let backgroundFileName = "widget-background.jpg"
+    /// 小组件 timeline kind（reloadTimelines(ofKind:) 用；与 CourseWidget StaticConfiguration 一致）。
+    public static let widgetKind = "org.openjwc.course"
+}
+
 /// 课表快照（App Group 共享数据模型，design D-7）：
 /// 主 App 导出（表元数据 + 节次配置 + 全部课程）→ JSON 原子写容器；
 /// 小组件/课程提醒读取后本地计算，不触达数据库。单写多读，读侧宽容解码。

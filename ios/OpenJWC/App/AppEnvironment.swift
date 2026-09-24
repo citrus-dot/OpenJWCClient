@@ -71,6 +71,8 @@ final class AppEnvironment {
         // 阶段 7a：全量同步（两 BGTask 提交/取消 + 课程提醒重排）+ 日报前台补偿
         await backgroundTasks.compensateDailyReportIfMissed()
         await backgroundTasks.syncAll()
+        // 阶段 7b：小组件快照首次导出（幂等；表/课程变化另有 onChange 链覆盖）
+        await WidgetSnapshotWriter.export(db: db)
     }
 
     /// 旧单配置（provider_config + Key 按 providerId）→ 配置档案（幂等）。

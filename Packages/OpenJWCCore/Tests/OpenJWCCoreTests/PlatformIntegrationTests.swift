@@ -1,5 +1,7 @@
 import Testing
 import Foundation
+import CoreGraphics
+import ImageIO
 import GRDB
 @testable import OpenJWCCore
 
@@ -289,6 +291,271 @@ struct PlatformIntegrationTests {
             )
             let items = build(Self.snapshot(courses: [course]), now: now)
             #expect(items[0].body == "体育 · 08:00-09:35")
+        }
+    }
+
+    // MARK: - 组 2.4 WidgetImageProcessor（红线 3）
+
+    @Suite("WidgetImageProcessor 降采样")
+    struct ImageProcessorTests {
+
+        /// 画一张纯色大图并编码为 PNG（3000×2000）。
+        private func makeLargeImagePNG(width: Int = 3000, height: Int = 2000) -> Data? {
+            let colorSpace = CGColorSpaceCreateDeviceRGB()
+            guard let context = CGContext(
+                data: nil, width: width, height: height,
+                bitsPerComponent: 8, bytesPerRow: 0, space: colorSpace,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { return nil }
+            context.setFillColor(CGColor(red: 0.2, green: 0.5, blue: 0.8, alpha: 1))
+            context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+            guard let image = context.makeImage() else { return nil }
+            let output = NSMutableData()
+            guard let destination = CGImageDestinationCreateWithData(
+                output, "public.png" as CFString, 1, nil
+            ) else { return nil }
+            CGImageDestinationAddImage(destination, image, nil)
+            guard CGImageDestinationFinalize(destination) else { return nil }
+            return output as Data
+        }
+
+        @Test("降采样：长边 ≤1280、JPEG 完整、体积受控")
+        func downsampleAndEncode() throws {
+            let original = try #require(makeLargeImagePNG())
+            let originalSize = try #require(WidgetImageProcessor.pixelSize(of: original))
+            #expect(max(originalSize.width, originalSize.height) == 3000)
+
+            let jpeg = try #require(WidgetImageProcessor.downsampleAndEncode(imageData: original))
+            let newSize = try #require(WidgetImageProcessor.pixelSize(of: jpeg))
+            #expect(max(newSize.width, newSize.height) <= 1280)
+            // 等比缩放：3000×2000 → 1280×853 附近
+            #expect(abs(Double(newSize.width) / Double(newSize.height) - 1.5) < 0.02)
+            #expect(jpeg.count < 500_000) // 产物 ≤ 数百 KB（纯色图实际远小于此）
+        }
+
+        @Test("无法解码的数据返回 nil")
+        func invalidDataReturnsNil() {
+            #expect(WidgetImageProcessor.downsampleAndEncode(imageData: Data([0x00, 0x01, 0x02])) == nil)
+            #expect(WidgetImageProcessor.pixelSize(of: Data("junk".utf8)) == nil)
+        }
+    }
+
+    // MARK: - 组 4.3 WidgetDisplayState 六分支 + WidgetTimelineBuilder
+
+    @Suite("WidgetDisplayState 显示状态")
+    struct DisplayStateTests {
+
+        private static let tz = TimeZone(identifier: "Asia/Shanghai")!
+
+        private static func date(_ y: Int, _ mo: Int, _ d: Int, _ h: Int, _ mi: Int) -> Date {
+            var cal = Calendar(identifier: .gregorian)
+            cal.timeZone = tz
+            return cal.date(from: DateComponents(
+                timeZone: tz, year: y, month: mo, day: d, hour: h, minute: mi
+            ))!
+        }
+
+        /// 2026-09-07 周一起；09-24（周四）为第 3 周；窗口内周四课 weekRule 3，下周一 09-28 为第 4 周。
+        private static func snapshot(courses: [WidgetSnapshot.Course]) -> WidgetSnapshot {
+            WidgetSnapshot(
+                tableId: 7, tableName: "2026 秋", startDate: "2026-09-07",
+                totalWeeks: 20,
+                periods: [
+                    .init(start: "08:00", end: "09:35"),
+                    .init(start: "10:00", end: "11:35"),
+                    .init(start: "14:00", end: "15:35"),
+                ],
+                courses: courses
+            )
+        }
+
+        private static func course(
+            id: Int64, day: Int, period: Int, duration: Int = 1, weeks: Set<Int> = [3, 4, 5]
+        ) -> WidgetSnapshot.Course {
+            WidgetSnapshot.Course(
+                id: id, name: "课\(id)", teacher: "师\(id)", location: "教室\(id)",
+                dayOfWeek: day, startPeriod: period, duration: duration,
+                color: Int64(-id), weekRule: weeks
+            )
+        }
+
+        private func compute(_ snapshot: WidgetSnapshot, at date: Date) -> WidgetDisplayState {
+            WidgetDisplayState.compute(snapshot: snapshot, date: date, timeZone: Self.tz)
+        }
+
+        @Test("场景①今天剩余过滤：10:00 显示 10:00 与 14:00 两门，进行中显示约 95 分钟")
+        func remainingFilter() {
+            // 周四（dayOfWeek=4）三门：节 1、2、3
+            let snapshot = Self.snapshot(courses: [
+                Self.course(id: 1, day: 4, period: 1),
+                Self.course(id: 2, day: 4, period: 2),
+                Self.course(id: 3, day: 4, period: 3),
+            ])
+            let state = compute(snapshot, at: Self.date(2026, 9, 24, 10, 0)) // 第 3 周周四
+            #expect(!state.showsTomorrow)
+            #expect(state.emptyMessage == nil)
+            #expect(state.courses.count == 2)
+            #expect(state.courses[0].id == 2)
+            #expect(state.courses[0].countdownMinutes == 95) // 11:35 - 10:00
+            #expect(state.courses[1].id == 3)
+            #expect(state.courses[1].countdownMinutes == nil) // 未开始无倒计时
+        }
+
+        @Test("场景②刚结束保留至下节开始：9:40 显示第一节倒计时 0 + 后续课；10:00 保留消失")
+        func justEndedRetention() {
+            let snapshot = Self.snapshot(courses: [
+                Self.course(id: 1, day: 4, period: 1),
+                Self.course(id: 2, day: 4, period: 2),
+            ])
+            // 9:40：第一节刚结束（9:35），下一节 10:00 未开始 → 保留倒计时 0
+            let retained = compute(snapshot, at: Self.date(2026, 9, 24, 9, 40))
+            #expect(retained.courses.map(\.id) == [1, 2])
+            #expect(retained.courses[0].countdownMinutes == 0)
+            #expect(retained.courses[1].countdownMinutes == nil)
+
+            // 10:00 整：下节开始，第一节让位
+            let shifted = compute(snapshot, at: Self.date(2026, 9, 24, 10, 0))
+            #expect(shifted.courses.map(\.id) == [2])
+        }
+
+        @Test("场景③17:00 与末课后切明天：18:00 显示明天课程 + 明天周次")
+        func switchToTomorrow() {
+            // 周四课（第 3 周）+ 周五课（09-25 仍属第 3 周）
+            let snapshot = Self.snapshot(courses: [
+                Self.course(id: 1, day: 4, period: 1),
+                Self.course(id: 2, day: 5, period: 2),
+            ])
+            let state = compute(snapshot, at: Self.date(2026, 9, 24, 18, 0))
+            #expect(state.showsTomorrow)
+            #expect(state.courses.map(\.id) == [2]) // 明天（周五）的课
+            #expect(state.weekNumber == 3)
+        }
+
+        @Test("场景④明天无课显示「明天没有课」")
+        func tomorrowEmpty() {
+            // 周四课，周五（09-26 属第 3 周）无课 → 18:00 切明天显示「明天没有课」
+            let snapshot = Self.snapshot(courses: [
+                Self.course(id: 1, day: 4, period: 1),
+            ])
+            let state = compute(snapshot, at: Self.date(2026, 9, 24, 18, 0))
+            #expect(state.showsTomorrow)
+            #expect(state.courses.isEmpty)
+            #expect(state.emptyMessage == "明天没有课")
+            #expect(state.weekNumber == 3) // 明天 09-26 仍在第 3 周
+        }
+
+        @Test("场景⑤今天无课显示「今天没有课」")
+        func todayEmpty() {
+            let snapshot = Self.snapshot(courses: [
+                Self.course(id: 1, day: 1, period: 1),
+            ])
+            let state = compute(snapshot, at: Self.date(2026, 9, 24, 10, 0)) // 周四无课
+            #expect(!state.showsTomorrow)
+            #expect(state.emptyMessage == "今天没有课")
+        }
+
+        @Test("场景⑥全部结束空态：末课结束且无保留可能（无有效节次）→「今日课程已结束」")
+        func allCompleted() {
+            // 末课（最后一门开始的课）结束后保留倒计时 0；要触达「今日课程已结束」
+            // 需保留分支不可用（保留课为数据异常课：节次无法解析）
+            let broken = WidgetSnapshot.Course(
+                id: 9, name: "坏课", teacher: "", location: "",
+                dayOfWeek: 4, startPeriod: 99, duration: 1, // 节 99 越界 → start/end 空
+                color: 1, weekRule: [3]
+            )
+            let snapshot = Self.snapshot(courses: [broken])
+            let state = compute(snapshot, at: Self.date(2026, 9, 24, 10, 0))
+            #expect(!state.showsTomorrow)
+            #expect(state.emptyMessage == "今日课程已结束")
+        }
+
+        @Test("倒计时 ceil 不为负 + MAX 2 截断 + 周次标注")
+        func countdownAndTruncation() {
+            // 4 门课：同时段只能显示 2 门
+            let snapshot = Self.snapshot(courses: (1...4).map {
+                Self.course(id: Int64($0), day: 4, period: 2)
+            })
+            let state = compute(snapshot, at: Self.date(2026, 9, 24, 10, 20))
+            #expect(state.courses.count == WidgetDisplayState.maxCourses)
+            #expect(state.courses[0].countdownMinutes == 75) // 11:35 - 10:20
+            #expect(state.weekNumber == 3)
+        }
+    }
+
+    @Suite("WidgetTimelineBuilder 时间线")
+    struct TimelineBuilderTests {
+
+        private static let tz = TimeZone(identifier: "Asia/Shanghai")!
+
+        private static func date(_ y: Int, _ mo: Int, _ d: Int, _ h: Int, _ mi: Int) -> Date {
+            var cal = Calendar(identifier: .gregorian)
+            cal.timeZone = tz
+            return cal.date(from: DateComponents(
+                timeZone: tz, year: y, month: mo, day: d, hour: h, minute: mi
+            ))!
+        }
+
+        private static func snapshot(courses: [WidgetSnapshot.Course]) -> WidgetSnapshot {
+            WidgetSnapshot(
+                tableId: 7, tableName: "2026 秋", startDate: "2026-09-07",
+                totalWeeks: 20,
+                periods: [
+                    .init(start: "08:00", end: "09:35"),
+                    .init(start: "10:00", end: "11:35"),
+                ],
+                courses: courses
+            )
+        }
+
+        @Test("节次边界 + 分钟倒计时 entry：进行中逐分钟推进")
+        func boundaryAndMinuteEntries() {
+            // 周四 10:00-11:35 一门课（第 3 周）
+            let course = WidgetSnapshot.Course(
+                id: 1, name: "课", teacher: "", location: "",
+                dayOfWeek: 4, startPeriod: 2, duration: 1, color: 1, weekRule: [3]
+            )
+            let now = Self.date(2026, 9, 24, 10, 20)
+            let entries = WidgetTimelineBuilder.build(
+                snapshot: Self.snapshot(courses: [course]), date: now, timeZone: Self.tz
+            )
+
+            // 首 entry = 当前时刻
+            #expect(entries.first?.date == now)
+            // 76 分钟 entry（10:20..11:35 含两端）+ 今日/明日 forecast 切换点与 00:05 切日点 4 个 = 80
+            #expect(entries.count == 80)
+            // 单调递增
+            let dates = entries.map(\.date)
+            #expect(dates == dates.sorted())
+            #expect(dates.first == now)
+            // 倒计时推进：10:20 → 75 分钟；11:35 边界 entry → 0
+            #expect(entries[0].state.courses.first?.countdownMinutes == 75)
+            let endBoundary = entries.first { $0.date == Self.date(2026, 9, 24, 11, 35) }
+            #expect(endBoundary?.state.courses.first?.countdownMinutes == 0)
+        }
+
+        @Test("午夜后 00:05 切日 entry 存在且状态切新一天")
+        func dayRollEntry() {
+            // 周四 18:00（已切明天预告）；时间线应含 09-27 00:05（周日凌晨）切日点
+            let course = WidgetSnapshot.Course(
+                id: 1, name: "课", teacher: "", location: "",
+                dayOfWeek: 4, startPeriod: 1, duration: 1, color: 1, weekRule: [3]
+            )
+            let now = Self.date(2026, 9, 24, 18, 0)
+            let entries = WidgetTimelineBuilder.build(
+                snapshot: Self.snapshot(courses: [course]), date: now, timeZone: Self.tz
+            )
+            let rollDate = Self.date(2026, 9, 25, 0, 5) // 次日 00:05
+            #expect(entries.contains { $0.date == rollDate })
+            // 单调 + 全部 >= now
+            #expect(entries.allSatisfy { $0.date >= now })
+        }
+
+        @Test("缺失快照回退空态单 entry")
+        func missingSnapshotFallback() {
+            let entries = WidgetTimelineBuilder.build(snapshot: nil, date: Self.date(2026, 9, 24, 10, 0), timeZone: Self.tz)
+            #expect(entries.count == 1)
+            #expect(entries[0].state.emptyMessage == "今天没有课")
+            #expect(entries[0].state.courses.isEmpty)
         }
     }
 }

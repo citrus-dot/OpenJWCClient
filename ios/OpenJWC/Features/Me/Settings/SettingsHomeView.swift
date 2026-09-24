@@ -40,6 +40,11 @@ struct SettingsHomeView: View {
                 } label: {
                     Label("课表设置", systemImage: "tablecells")
                 }
+                NavigationLink {
+                    WidgetSettingsView()
+                } label: {
+                    Label("小组件", systemImage: "square.grid.2x2")
+                }
             }
             Section("关于") {
                 NavigationLink {

@@ -11,7 +11,7 @@
 - [x] 2.1 `WidgetSnapshot` 模型（schemaVersion + 表元数据 + 节次起止分钟 + 全部课程含 color ARGB）+ JSON 编解码（读侧宽容：缺字段/未知版本 → 空态）（**7a 提前完成**：组 3 CourseReminderPlan 依赖快照输入，纯 Foundation 无 WidgetKit 依赖）
 - [x] 2.2 原子写辅助（临时文件 + rename）+ 快照文件路径约定（App Group 容器 `timetable-snapshot.json`）（**7a 提前完成**，另含 DB 记录 → 快照转换供提醒排程复用）
 - [x] 2.3 单测：编码→解码回环、宽容读三态（缺字段/未知版本/文件不存在）、原子写（**7a 提前完成**）
-- [ ] 2.4 `WidgetImageProcessor.downsampleAndEncode(jpeg:maxDimension:quality:)` core 纯函数（ImageIO + CGImageDestination；产物 ≤ 数百 KB）+ 单测（尺寸上限/体积上限/JPEG 完整性）【红线 3】
+- [x] 2.4 `WidgetImageProcessor.downsampleAndEncode(jpeg:maxDimension:quality:)` core 纯函数（ImageIO + CGImageDestination；产物 ≤ 数百 KB）+ 单测（尺寸上限/体积上限/JPEG 完整性）【红线 3】
 
 ## 3. core：课程提醒计划纯函数【7a】（spec：课程提醒通知；design D-4）
 - [x] 3.1 `CourseReminderPlan`：输入课表快照 + now + 14 天窗口 → [计划(稳定 id, fireDate=上课时刻−10 分钟, name/timeText/classroom/teacher)]；weekRule 命中、过去/超窗跳过
@@ -20,9 +20,9 @@
 - [x] 3.4 单测：提前量/窗口边界/weekRule/id 确定性/64 截断
 
 ## 4. core：小组件显示状态与时间线纯函数【7b】（spec：课程小组件/小组件时间线/小组件尺寸族；design D-6）
-- [ ] 4.1 `WidgetDisplayState`：直译 `WidgetModels` 六分支（今天剩余过滤/刚结束保留至下节/17:00 与末课后切明天/明天无课「明天没有课」/今天无课/全部结束）；倒计时分钟 ceil 不为负；MAX_COURSES=2
-- [ ] 4.2 `WidgetTimelineBuilder`：节次边界 entry（推进过滤与切日）+ 进行中课程分钟粒度 entry + 午夜后切日 entry；entry 时刻单调；`.atEnd` 刷新点
-- [ ] 4.3 单测：六分支显示 + 时间线推进（边界/分钟/午夜/缺失快照回退空态）
+- [x] 4.1 `WidgetDisplayState`：直译 `WidgetModels` 六分支（今天剩余过滤/刚结束保留至下节/17:00 与末课后切明天/明天无课「明天没有课」/今天无课/全部结束）；倒计时分钟 ceil 不为负；MAX_COURSES=2（另增 moreCourses 供 Large 完整列表）
+- [x] 4.2 `WidgetTimelineBuilder`：节次边界 entry（推进过滤与切日）+ 进行中课程分钟粒度 entry + 午夜后切日 entry；entry 时刻单调；`.atEnd` 刷新点
+- [x] 4.3 单测：六分支显示 + 时间线推进（边界/分钟/午夜/缺失快照回退空态）
 
 ## 5. app：通知基础设施【7a】（spec：新闻通知/通知权限申请；design D-3/D-5）
 - [x] 5.1 `NotificationAuthorizer`：requestAuthorization([.alert, .sound])（仅设置页开关操作时调用）/ 状态查询 / openSettingsURLPath 跳转 / scenePhase 回前台刷新
@@ -51,24 +51,24 @@
 - [x] 8.4 `LlmSettingsView` 增日报分组：开关 + HH:mm DatePicker（默认 00:10，关闭时置灰），变更即同步日报任务（分组 UI 阶段 5 已备，本次接入 submitDailyReportTask 同步）
 
 ## 9. widget：target 基建【7b】（spec：课程小组件/小组件数据管线；design D-7/D-10）
-- [ ] 9.1 `project.yml` 增 `OpenJWCWidget` appex target（依赖 OpenJWCCore、嵌入主 app、App Group entitlement 双侧开通）
-- [ ] 9.2 `xcodegen generate` + 模拟器构建通过（App Group 模拟器免签验证）
+- [x] 9.1 `project.yml` 增 `OpenJWCWidget` appex target（依赖 OpenJWCCore、嵌入主 app、App Group entitlement 双侧开通）
+- [x] 9.2 `xcodegen generate` + 模拟器构建通过（App Group 模拟器免签验证；实测快照成功写入 `group.org.openjwc.shared` 容器；appex bundle id 须为主 app 子前缀——research-notes §8.3）
 
 ## 10. widget：TimelineProvider + 三尺寸视图【7b】（spec：课程小组件/小组件时间线/小组件尺寸族；design D-6）
-- [ ] 10.1 `CourseTimelineProvider`：读快照 JSON → `WidgetTimelineBuilder` → Timeline(.atEnd)；缺失/解码失败 → 空态 entry
-- [ ] 10.2 Medium 基准布局：头部（icon + 今天/明天·星期 + 第 N 周）+ 最多 2 门课程卡（时间列 + 色条 + 课名 + 第 X-Y 节|教室|教师 + 约 N 分钟倒计时）；**`.containerBackground(for: .widget)` 必用（红线 2）；有背景图时 `containerBackgroundRemovable(false)`、无背景图时默认可移除；`.contentMarginsDisabled()` + 自管内边距；课程色条/倒计时可 `.widgetAccentable()`（可选增强）**
-- [ ] 10.3 Small（头部 + 精简行）/ Large（Medium 同款 + 完整列表）两尺寸
-- [ ] 10.4 `widgetURL` → 主 app `onOpenURL` → `AppRouter` 深链课表 tab
-- [ ] 10.5 `WidgetSettingsReader`：group defaults 两键 + 背景图读取（路径缺文件回退纯色）
+- [x] 10.1 `CourseTimelineProvider`：读快照 JSON → `WidgetTimelineBuilder` → Timeline(.atEnd)；缺失/解码失败 → 空态 entry
+- [x] 10.2 Medium 基准布局：头部（icon + 今天/明天·星期 + 第 N 周）+ 最多 2 门课程卡（时间列 + 色条 + 课名 + 第 X-Y 节|教室|教师 + 约 N 分钟倒计时）；**`.containerBackground(for: .widget)` 必用（红线 2）；有背景图时 `containerBackgroundRemovable(false)`、无背景图时默认可移除；`.contentMarginsDisabled()` + 自管内边距；课程色条/倒计时可 `.widgetAccentable()`（可选增强）**（实施修正：Removable/contentMarginsDisabled 为 WidgetConfiguration 级 API，Removable 无法按背景图动态——research-notes §8.1，偏差待用户拍板）
+- [x] 10.3 Small（头部 + 精简行）/ Large（Medium 同款 + 完整列表 moreCourses）两尺寸
+- [x] 10.4 `widgetURL` → 主 app `onOpenURL` → `AppRouter` 深链课表 tab
+- [x] 10.5 `WidgetSettingsReader`：group defaults 两键 + 背景图读取（路径缺文件回退纯色）
 
 ## 11. app：快照导出与触发链接线【7b】（spec：小组件数据管线；design D-7/D-8）
-- [ ] 11.1 `WidgetSnapshotWriter.export()`：当前表 + 节次 + 课程 → `WidgetSnapshot` JSON 原子写 App Group → `WidgetCenter.shared.reloadTimelines`
-- [ ] 11.2 接入触发链：bootstrap 首次导出 + `TimetableStore` 快照变化（table.id + courses.count，distinctUntilChanged 等价）→ export + reload
-- [ ] 11.3 小组件设置变更（背景/不透明度/移除背景）→ group defaults 写入 + reload
+- [x] 11.1 `WidgetSnapshotWriter.export()`：当前表 + 节次 + 课程 → `WidgetSnapshot` JSON 原子写 App Group → `WidgetCenter.reloadTimelines(ofKind:)`（直接查 DB，时序无关——research-notes §8.5）
+- [x] 11.2 接入触发链：bootstrap 首次导出 + `TimetableStore` 快照变化（onChange，观察同源）→ export + reload
+- [x] 11.3 小组件设置变更（背景/不透明度/移除背景）→ group defaults 写入 + reload
 
 ## 12. app：Me 小组件设置页【7b】（spec：小组件设置页；design D-8）
-- [ ] 12.1 `SettingsHomeView` 增「小组件」入口；`WidgetSettingsView`：静态示例预览（实时反映背景/不透明度）+ 选择图片（PhotosPicker → **降采样 ≤1280px + 重编码 JPEG quality≈0.75（红线 3，`WidgetImageProcessor` core 纯函数）**存 group 容器）+ 移除背景（红字，有背景时显示）+ 不透明度滑块（0-100% 显示 / 0...1 存储，默认 0.5）
-- [ ] 12.2 任一变更写入 group defaults 并触发小组件刷新（11.3 链路）
+- [x] 12.1 `SettingsHomeView` 增「小组件」入口；`WidgetSettingsView`：静态示例预览（实时反映背景/不透明度）+ 选择图片（PhotosPicker → **降采样 ≤1280px + 重编码 JPEG quality≈0.75（红线 3，`WidgetImageProcessor` core 纯函数）**存 group 容器）+ 移除背景（红字，有背景时显示）+ 不透明度滑块（0-100% 显示 / 0...1 存储，默认 0.5）
+- [x] 12.2 任一变更写入 group defaults 并触发小组件刷新（11.3 链路）
 
 ## 13. 手验与归档
 - [ ] 13.1 7a 手验（D-9 清单 ①-⑨）：权限弹窗/拒权引导、单条/多条通知点击深链、课程提醒 10 分钟横幅 + 点击、改课重排、关提醒清空、后台抓取（模拟器等待 + LLDB `_simulateLaunchForTaskWithIdentifier` 强制触发）、日报错过补偿 → 用户确认

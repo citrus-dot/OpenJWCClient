@@ -36,6 +36,7 @@ targets:
     dependencies:
       - package: OpenJWCCore
       - package: MarkdownUI
+      - target: OpenJWCWidget
     info:
       path: OpenJWC/Info.plist
       properties:
@@ -59,6 +60,29 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: false
+        # 阶段 7b（D-7）：App Group 双侧开通（模拟器免签可用，真机侧载阶段 8 处理）
+        CODE_SIGN_ENTITLEMENTS: OpenJWC/OpenJWC.entitlements
+
+  OpenJWCWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: OpenJWCWidget
+    dependencies:
+      - package: OpenJWCCore
+    info:
+      path: OpenJWCWidget/Info.plist
+      properties:
+        CFBundleDisplayName: OpenJWC 课程小组件
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: false
+        CODE_SIGN_ENTITLEMENTS: OpenJWCWidget/OpenJWCWidget.entitlements
+        SKIP_INSTALL: true
+        # appex bundle id 必须是主 app bundle id 的子前缀，否则安装报 Mismatched bundle IDs
+        PRODUCT_BUNDLE_IDENTIFIER: org.openjwc.OpenJWC.CourseWidget
 
 schemes:
   OpenJWC:

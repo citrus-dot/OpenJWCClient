@@ -165,3 +165,27 @@
 ### 7.3 submit 诊断日志
 
 `submitNewsTask`/`submitDailyReportTask` 成功与失败路径均增 `NSLog`（成功含 earliest 参数；失败含完整 Error Domain/Code）——静默吞错误的设计保留，但排障可观测（本次即靠它定位 Code=1）。
+
+## 八、7b 实施期补遗（2026-09-24，iOS 26.5 SDK 实测）
+
+### 8.1 WidgetConfiguration 级 API 修正（红线 2 的实施修正）
+
+- `containerBackgroundRemovable(_:)` 与 `contentMarginsDisabled()` 在 iOS 26 SDK 中是 **`WidgetConfiguration` 的方法**（配置链上调用），**不是 View modifier**——调研期（D-13 红线 2）按 View modifier 记录有误。已在 swiftinterface 中核实（两个方法均返回 `some WidgetConfiguration`）。
+- 由此 **`containerBackgroundRemovable(false)` 无法按 entry 的背景图状态动态切换**（configuration 级静态）。实施取默认值（可移除）：有背景图时桌面正常渲染不受影响，仅 StandBy/iPad 锁屏特殊模式下背景被移除——与 D-13「背景始终可见」的偏差记录在案，如需强制显示需放弃无背景图的 StandBy 资格（静态二选一），交用户拍板。
+- `contentMarginsDisabled()` 落在 `CourseWidget` 的 WidgetConfiguration 链上（`supportedFamilies` 之后）。
+
+### 8.2 WidgetCenter.reloadTimelines 必须带 ofKind
+
+iOS 26 SDK 无无参 `reloadTimelines()`；主 app 侧统一 `reloadTimelines(ofKind: WidgetSharedKeys.widgetKind)`（kind = `org.openjwc.course`，与 widget `StaticConfiguration(kind:)` 一致，常量入 core 共享防漂移）。
+
+### 8.3 appex bundle id 必须为主 app 的子前缀
+
+`OpenJWCWidget` 若沿用 `org.openjwc.OpenJWCWidget` 顶层 id，安装报 `Mismatched bundle IDs / Failed to set app extension placeholders`。修正为 `org.openjwc.OpenJWC.CourseWidget`（project.yml settings.base.PRODUCT_BUNDLE_IDENTIFIER；xcodegen 的 target 级 bundleIdPrefix/bundleId 均未生效）。
+
+### 8.4 SwiftUI Section 混合 init 不存在
+
+`Section("标题") { } footer: { }` 组合不编译（String 重载无 footer 参数版）——统一用 `Section { } header: { } footer: { }`。此类报错信息误导性强（指向 title 字符串 "cannot convert String to () -> Content"）。
+
+### 8.5 快照导出时序
+
+bootstrap 导出若依赖 `TimetableStore` 的观察快照，会因 GRDB ValueObservation 异步首推时序晚于 bootstrap 而写空快照——`WidgetSnapshotWriter.export(db:)` 改为直接查 DB（与观察同源），bootstrap 与 onChange 链均走 DB 读取，时序无关。
