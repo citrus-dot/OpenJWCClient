@@ -66,9 +66,9 @@ npx openspec validate ios-platform-integration
 
 ## 七、立案完成状态更新（2026-09-24）
 
-**四件套 + 生产级调研附录已完成并通过 `openspec validate`**，提交 `77c3199`（push 遇 GitHub 502 留本地 ahead 1，稍后补推）：
-- `proposal.md` / `specs/platform-integration/spec.md`（12 Requirement）/ `design.md`（D-1~D-12 逐条答 §二 8 问）/ `tasks.md`（48 项，7a=通知+后台任务 / 7b=Widget+设置 / 组 13 归档）
-- `research-production-notes.md`：对照 Apple 官方 + NetNewsWire（7.8k★，权重合度最高实证）+ SwiftLee/Use Your Loaf 的生产级调研补遗
+**四件套 + 生产级调研附录已完成并通过 `openspec validate`**，两 commit 均已 push 至 `origin/feat/on-device-ai`（HEAD `72f60ed`）：
+- `77c3199` 立案四件套（proposal / specs/platform-integration/spec.md 12 Requirement / design.md D-1~D-12 / tasks.md 48 项 7a+7b+组 13 归档）
+- `72f60ed` 生产级调研增补（research-production-notes.md + spec/design/tasks 三处红线增补 + proposal 风险 ④⑤⑥）
 
 **三条生产级红线（调研新发现，spec/design/tasks 已同步增补）**：
 1. **Swift 6 严格并发闭包隔离崩溃陷阱**：`AppEnvironment` 是 `@MainActor`；`BGTaskScheduler.register`/`expirationHandler` 闭包若定义在 @MainActor 方法内 → 继承隔离 → 系统后台队列调用 → Swift 6 运行时入口 `EXC_BREAKPOINT`（早于 `Task{ @MainActor in }` 执行，编译零警告却后台崩溃，HackerNoon Amana 实录）。**修复**：闭包定义于 `nonisolated static` 上下文，闭包内只跳主线程、不触任何 @MainActor 状态。
@@ -78,3 +78,5 @@ npx openspec validate ios-platform-integration
 **调研背书**：snapshot JSON 方案（design D-7）由 NetNewsWire `WidgetDataEncoder` 生产实证（不访问主 app DB + 两时机写入 + reloadAllTimelines + widgetURL 深链，逐项对齐本案）；Use Your Loaf 直接建议 widget 不必共享 DB 提取 JSON 即可；SwiftLee 证实共享 Core Data 需 Persistent History Tracking + Darwin Notification 复杂度高 → 背书否决共享 DB 方案 a。silent push 频率增强（NetNewsWire issue #2616）列为未来增强，不纳入本案。
 
 **下一步**：**等用户评审拍板后实施 7a**（core newNotices/CourseReminderPlan + NewsNotifier + CourseReminderScheduler + BackgroundTaskCoordinator + 通知设置页 + LlmSettings 日报分组）。三条红线在 7a（红线 1）与 7b（红线 2/3）落地，验收清单见 tasks.md 组 13.1/13.2。
+
+**ai-memory handoff**：已发起（shared=true，下一会话 SessionStart 自动注入），summary/open_questions/next_steps 反映「两 commit 已 push + 等评审」最终状态。下一会话接手时若未见注入块，可用 `memory_handoff_list` 查 open handoff 后 `memory_handoff_accept` 认领。
