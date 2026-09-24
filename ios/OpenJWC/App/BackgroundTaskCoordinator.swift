@@ -113,10 +113,12 @@ final class BackgroundTaskCoordinator {
         request.earliestBeginDate = Date(timeIntervalSinceNow: TimeInterval(userSettings.newsCheckIntervalMinutes * 60))
         do {
             try BGTaskScheduler.shared.submit(request)
+            NSLog("BGTask newsRefresh 已提交（earliest \(userSettings.newsCheckIntervalMinutes) 分钟）")
             lastEvent = "newsRefresh submitted @\(Int(userSettings.newsCheckIntervalMinutes))min"
         } catch {
-            // .notPermitted（用户关闭后台刷新）/.tooManyPendingTaskRequests/.unavailable（模拟器旧版）：
+            // .notPermitted（用户关闭后台刷新/白名单缺失）/.tooManyPendingTaskRequests/.unavailable（模拟器旧版）：
             // 静默吞并记日志，不崩溃不报错——前台 Timer + 启动抓取兜底
+            NSLog("BGTask newsRefresh 提交失败: \(error)")
             lastEvent = "newsRefresh submit failed: \(error.localizedDescription)"
         }
     }
@@ -135,8 +137,10 @@ final class BackgroundTaskCoordinator {
         request.earliestBeginDate = Self.nextOccurrence(of: userSettings.dailyReportTime, from: Date())
         do {
             try BGTaskScheduler.shared.submit(request)
+            NSLog("BGTask dailyReport 已提交（earliest \(userSettings.dailyReportTime)）")
             lastEvent = "dailyReport submitted @\(userSettings.dailyReportTime)"
         } catch {
+            NSLog("BGTask dailyReport 提交失败: \(error)")
             lastEvent = "dailyReport submit failed: \(error.localizedDescription)"
         }
     }

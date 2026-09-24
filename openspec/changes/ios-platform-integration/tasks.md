@@ -42,7 +42,7 @@
 - [x] 7.5 前台补偿：bootstrap 检查「今日已过 dailyReportTime 且昨日非 COMPLETED」→ 前台生成（幂等由 generate 守卫）
 - [x] 7.6 前台 Timer：scenePhase active 期间按 `newsCheckIntervalMinutes` 驱动抓取（共用防重入闸）
 - [x] 7.7 `syncAll()`：设置五字段变化 → 两任务提交/取消 + 提醒重排（对齐 `MainActivity.kt:49-60`）
-- [ ] 7.8 手验：后台强制触发（LLDB `_simulateLaunchForTaskWithIdentifier`）不崩溃、expiration 续排、force-quit 后重启恢复
+- [ ] 7.8 手验：后台强制触发（LLDB `_simulateLaunchForTaskWithIdentifier`）不崩溃、expiration 续排、force-quit 后重启恢复（**2026-09-24 实测：iOS 26.5 模拟器 BGTaskScheduler 不可用 Code=1，本项移真机验收（阶段 8 免签侧载一并执行），详见 research-production-notes.md §7.2**）
 
 ## 8. app：Me 通知设置页 + 日报设置分组【7a】（spec：通知设置页/日报设置分组/通知权限申请；design D-3/D-8）
 - [x] 8.1 `SettingsHomeView` 增「通知」入口；`NotificationSettingsView`：新闻分组（开关 + 间隔 Picker 15/30/60/180/360，关时间隔置灰）+ 课程提醒开关 + 权限状态行（被拒「去系统设置」）

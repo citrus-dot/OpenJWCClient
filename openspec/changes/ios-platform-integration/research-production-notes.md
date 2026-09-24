@@ -143,3 +143,25 @@
 5. **openspec validate 复跑**。
 6. **docs/ios-stage7-handoff.md 更新**：评审状态、调研附录指引、生产级要点清单（Swift 6 陷阱/containerBackground/降采样三条红线）。
 7. **ai-memory handoff**：下一会话 SessionStart 自动注入本案状态 + 三条生产级红线 + 待评审。
+
+## 七、7a 实施期补遗（2026-09-24 手验实录，iOS 26.5 模拟器）
+
+### 7.1 ATS 明文拦截（阶段 4 遗留 bug，7a 手验发现并修复）
+
+- **现象**：抓取控制台刷 `NSURLErrorDomain Code=-1022 "App Transport Security policy requires the use of a secure connection"`，URL 为 `http://jwc.seu.edu.cn/...`（脚本拼出的明文分页 URL）。
+- **根因**：主 app Info.plist 从未配置 ATS 例外（阶段 4 漏项）；iOS 默认拦截 `http://` 明文请求。Android 无此限制（功能不缺失对照基准的又一平台差异，此前未被覆盖）。
+- **修复**：`NSAppTransportSecurity → NSAllowsArbitraryLoads = true`（Info.plist + project.yml 同步）。逐域白名单不现实（39 个内置源域名杂、明文 https 混用、脚本动态拼 URL）；源均为公开高校新闻站，与 Android 对齐语义，风险可接受。
+- **影响**：部分仅提供 http 的源在 iOS 端此前**从未抓取成功**；修复后恢复（对齐 Android 功能面）。
+
+### 7.2 BGTaskScheduler 模拟器不可用（Code=1 Unavailable 实录）
+
+- **现象**：`submit` 抛 `BGTaskSchedulerErrorDomain Code=1`（`BGTaskSchedulerErrorCodeUnavailable`）；`_simulateLaunchForTaskWithIdentifier` 报 `No task request ... has been scheduled`（无提交自然无 handler 可调）。
+- **结论**：**iOS 26.5 模拟器不支持 BGTaskScheduler**（系统限制，非代码缺陷；与调研期「模拟器可观测」的预期不符）。register 不报错、白名单/后台模式均在产物 Info.plist 中验证正确。
+- **验收口径调整（取代 D-9 中「模拟器提交后等待观测」与 LLDB 强制触发的部分）**：
+  - 模拟器可验：前台全链路——权限流、通知设置页、开关 runOnce 立即抓取发通知、通知点击深链、课程提醒注册与触发（UNUserNotificationCenter 与 BGTask 无关，完全可用）、前台 Timer、日报前台补偿、`setTaskCompleted`/续排逻辑（单测覆盖纯函数部分）。
+  - **真机验收项（延至阶段 8 免签侧载一并执行）**：后台任务实际触发不崩溃（红线 1 的最终实证）、expiration 续排、force-quit 恢复。
+  - 代码侧红线 1 的静态保障不变（nonisolated static 模板已实施，编译期 + 单测锁定）。
+
+### 7.3 submit 诊断日志
+
+`submitNewsTask`/`submitDailyReportTask` 成功与失败路径均增 `NSLog`（成功含 earliest 参数；失败含完整 Error Domain/Code）——静默吞错误的设计保留，但排障可观测（本次即靠它定位 Code=1）。

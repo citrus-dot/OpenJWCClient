@@ -52,6 +52,10 @@ targets:
         UIBackgroundModes:
           - fetch
           - processing
+        # 阶段 7a 手验发现（阶段 4 遗留）：39 个源含 http 明文 URL，ATS 默认拦截致 -1022；
+        # 对齐 Android 无明文限制语义（公开高校新闻站，域名杂无法逐域列白）
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
     settings:
       base:
         GENERATE_INFOPLIST_FILE: false

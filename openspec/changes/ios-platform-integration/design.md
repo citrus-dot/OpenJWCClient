@@ -141,7 +141,7 @@
 
 ## D-9 调试与验收口径（调研问题 8）
 
-- **BGTaskScheduler（模拟器）**：模拟器对 earliestBeginDate 大幅压缩（分钟级即触发），可「提交后等待」直接观测；强制触发用 LLDB 私有 API `e -l objc -- (void)[[BGTaskScheduler sharedScheduler] _simulateLaunchForTaskWithIdentifier:@"org.openjwc.newsrefresh"]`（同族 `_simulateExpirationForTaskWithIdentifier:` 验证 expiration 续排；仅调试器可用）。**验收口径**：模拟器 + 强制触发 + 前台补偿为主，真机准点性**不做验收项**（产品文案已声明尽力而为——D-1 语义差异口径）。
+- **BGTaskScheduler（模拟器）**：~~模拟器对 earliestBeginDate 大幅压缩（分钟级即触发），可「提交后等待」直接观测~~；**2026-09-24 实测修正（iOS 26.5 模拟器）：`submit` 返回 `Code=1 Unavailable`，模拟器不支持 BGTaskScheduler——后台触发/expiration/force-quit 验收移真机（阶段 8），前台全链路（权限/通知/深链/课程提醒/Timer/补偿）仍在模拟器验收**，实录见 `research-production-notes.md` §7.2；强制触发原调研手段（仅调试器可用，真机不可用）保留备查。**验收口径**：前台路径以模拟器 + 前台补偿为主，真机准点性**不做验收项**（产品文案已声明尽力而为——D-1 语义差异口径）。
 - **WidgetKit**：模拟器桌面长按添加三尺寸实测；`xcodebuild` 构建 appex 通过为硬门槛；时间线推进用「改系统时间/等分钟边界 + `reloadTimelines`」观测；深色模式切换验证（对齐 D-8 深色纪律）。
 - **通知端到端手验清单**：①设置页开新闻通知 → 权限弹窗 → 授予 → 立即抓取反馈；②拒权 → 开关回弹 + 引导行 → 去系统设置开启 → 返回页面状态刷新；③单条新资讯通知 → 点击 → 资讯 tab + 该条详情；④多条 → 点击 → 资讯列表；⑤课程提醒（注册测试课 10 分钟后开始）→ 提前 10 分钟横幅 → 点击 → 课表 tab；⑥改课 → 旧提醒不再触发（pending 列表核对）；⑦关课程提醒 → pending 清空；⑧日报：设 1 分钟后时刻 → 模拟器等待/强制触发 → 昨日日报生成；⑨错过时刻（改系统时间）→ 启动 App → 前台补偿生成。
 - 基线命令沿用 handoff §五（swift test 离线 98/19 全绿保持 + 新增；`xcodegen generate` + `xcodebuild` 模拟器构建）。
